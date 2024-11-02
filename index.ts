@@ -22,6 +22,8 @@ const CUSTOM_FEE = retrieveEnvVariable('CUSTOM_FEE', logger);
 const QUOTE_AMOUNT = retrieveEnvVariable('QUOTE_AMOUNT', logger);
 const MAX_BUY_RETRIES = retrieveEnvVariable('MAX_BUY_RETRIES', logger);
 const BUY_SLIPPAGE = retrieveEnvVariable('BUY_SLIPPAGE', logger);
+
+
 const wallet = getWallet(PRIVATE_KEY.trim());
 const quoteToken = Token.WSOL //buy using wrapped solana
 
@@ -93,15 +95,16 @@ async function subscribeToRaydiumPools() {
 }
 
 async function subscribeToOpenBookMarkets() {
-  return this.connection.onProgramAccountChange(
+  return connection.onProgramAccountChange(
     MAINNET_PROGRAM_ID.OPENBOOK_MARKET,
     async (updatedAccountInfo: KeyedAccountInfo) => {
 
       const marketState = MARKET_STATE_LAYOUT_V3.decode(updatedAccountInfo.accountInfo.data);
       marketCache.save(updatedAccountInfo.accountId.toString(), marketState);
     },
-    this.connection.commitment,
-    [
+    {
+    commitment:connection.commitment,
+    filters:[
       { dataSize: MARKET_STATE_LAYOUT_V3.span },
       {
         memcmp: {
@@ -110,6 +113,7 @@ async function subscribeToOpenBookMarkets() {
         },
       },
     ],
+  }
   );
 }
 
