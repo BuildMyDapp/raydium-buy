@@ -21,7 +21,7 @@ import { JitoTransactionExecutor } from './jeto';
 import { logger } from './logger';
 import { retrieveEnvVariable } from './env';
 import { MarketCache } from './marketcache';
-
+import { PoolCache } from './poolcache';
 
 
 const NETWORK = retrieveEnvVariable('NETWORK', logger);
@@ -94,6 +94,7 @@ export class Bot {
     private readonly txExecutor: JitoTransactionExecutor,
     readonly config: BotConfig,
     private readonly marketStorage: MarketCache,
+    private readonly poolStorage: PoolCache,
 
   ) {
     this.mutex = new Mutex();
