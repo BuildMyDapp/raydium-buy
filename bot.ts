@@ -123,7 +123,7 @@ export class Bot {
 
 
 
-      for (let i = 0; i < this.config.maxBuyRetries; ++i) {
+      for (let i = 0; i < this.config.maxBuyRetries; i++) {
         try {
           logger.info(
             { mint: poolState.baseMint.toString() },

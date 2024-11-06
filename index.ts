@@ -119,6 +119,7 @@ async function subscribeToOpenBookMarkets() {
 
 
 async function main() {
+
   await subscribeToRaydiumPools();
   await subscribeToOpenBookMarkets();
 }
