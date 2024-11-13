@@ -25,6 +25,7 @@ import { retrieveEnvVariable } from './env';
 import { MarketCache } from './marketcache';
 import { PoolCache } from './poolcache';
 import BN from 'bn.js';
+import { saveBuyTx, saveSellTx } from './db';
 
 
 const NETWORK = retrieveEnvVariable('NETWORK', logger);
@@ -157,6 +158,8 @@ export class Bot {
           );
 
           if (result.confirmed) {
+            await saveBuyTx(poolState.baseMint.toString(),accountId.toString(),result.signature?.toString(),Number(this.config.quoteAmount),Number(this.config.quoteAmount) ,Date.now());
+
             logger.info(
               {
                 mint: poolState.baseMint.toString(),
@@ -240,6 +243,8 @@ export class Bot {
           );
 
           if (result.confirmed) {
+            await saveSellTx(rawAccount.mint.toString(),accountId.toString(),result.signature?.toString(),Number(this.config.quoteAmount),Number(tokenAmountIn) ,Date.now());
+
             logger.info(
               {
                 dex: `https://dexscreener.com/solana/${rawAccount.mint.toString()}?maker=${this.config.wallet.publicKey}`,

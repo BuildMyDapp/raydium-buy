@@ -1,6 +1,5 @@
 import { Connection } from '@solana/web3.js';
-import dotenv from "dotenv"
-dotenv.config()
+
 import { retrieveEnvVariable } from './env';
 import { logger } from './logger';
 
@@ -14,3 +13,4 @@ export const connection = new Connection(RPC_ENDPOINT, {
   wsEndpoint: RPC_WEBSOCKET_ENDPOINT,
   commitment: "confirmed",
 });
+

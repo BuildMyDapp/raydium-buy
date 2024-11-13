@@ -172,8 +172,6 @@ async function main() {
   await subscribeToRaydiumPools();
   await subscribeToOpenBookMarkets();
   await subscribeToWalletChanges(wallet.publicKey);
-
-
 }
 
 main()
