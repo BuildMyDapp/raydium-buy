@@ -93,17 +93,22 @@ async function subscribeToRaydiumPools() {
       if (poolState.baseMint.toString().endsWith("pump")) {
         const exists = await poolCache.get(poolState.baseMint.toString());
         const poolOpenTime = parseInt(poolState.poolOpenTime.toString());
-
-        const marketCap = await getTokenMarketCap(updatedAccountInfo.accountId)
-        if (!exists && marketCap >= Number(TARGET_MARKET_CAP) ) {
-          // Check if the token is a pump fun graduated token and print the pool details and the token address.
-          console.log({
-            "token_address": poolState.baseMint.toString(),
-            "pool_address": updatedAccountInfo.accountId.toString()
-          })
+      
+        if (!exists && poolOpenTime > now) {
           poolCache.save(updatedAccountInfo.accountId.toString(), poolState);
+          const marketCap = await getTokenMarketCap(updatedAccountInfo.accountId)
+         
+          if(marketCap >= Number(TARGET_MARKET_CAP)){
+            console.log("marketCap",marketCap)
+            console.log({
+              "token_address": poolState.baseMint.toString(),
+              "pool_address": updatedAccountInfo.accountId.toString()
+            })
+            // Check if the token is a pump fun graduated token and print the pool details and the token address.
+            await bot.buy(updatedAccountInfo.accountId, poolState);
+          }
+         
 
-          // await bot.buy(updatedAccountInfo.accountId, poolState);
         }
 
 
@@ -144,7 +149,7 @@ async function subscribeToWalletChanges(walletPublicKey: PublicKey) {
     async (updatedAccountInfo) => {
       const accountData = AccountLayout.decode(updatedAccountInfo.accountInfo.data);
 
-      // await bot.sell(updatedAccountInfo.accountId, accountData);
+      await bot.sell(updatedAccountInfo.accountId, accountData);
     },
     {
       commitment: connection.commitment,
@@ -164,13 +169,10 @@ async function subscribeToWalletChanges(walletPublicKey: PublicKey) {
 }
 
 async function main() {
-  try{
   await subscribeToRaydiumPools();
   await subscribeToOpenBookMarkets();
   await subscribeToWalletChanges(wallet.publicKey);
-  }catch(e){
-    console.error(e)
-  }
+
 
 }
 
@@ -197,7 +199,8 @@ async function getTokenMarketCap(poolId: PublicKey): Promise<number> {
 let requestCount = 0
 let solPriceCached = 0
 async function getUsdPrice(): Promise<number> {
-  if(requestCount == 20){
+  try{
+  if(requestCount == 5){
 
     return solPriceCached
   }else{
@@ -211,8 +214,12 @@ async function getUsdPrice(): Promise<number> {
   })
   solPriceCached = pool[0].price
   
-  return pool[0].price
+  return solPriceCached
 }
+  } catch(e){
+console.log("error ---->",e)
+return 0
+  }
 }
 
 setInterval(()=>{
