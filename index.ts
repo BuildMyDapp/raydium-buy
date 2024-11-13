@@ -5,14 +5,14 @@ import { JitoTransactionExecutor } from './jeto';
 import { logger } from './logger';
 import { retrieveEnvVariable } from './env';
 import { KeyedAccountInfo, Keypair, ProgramAccountSubscriptionConfig, PublicKey } from '@solana/web3.js';
-import { AccountLayout, getAssociatedTokenAddress, getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import { AccountLayout, getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { Bot } from './bot';
 import { MarketCache } from "./marketcache"
 import { PoolCache } from './poolcache';
 import "./helper"
 import { createPoolKeys } from './helper';
-import { BN } from 'bn.js';
-import { PoolFetchType, Raydium } from '@raydium-io/raydium-sdk-v2'
+// import { BN } from 'bn.js';
+import { Raydium } from '@raydium-io/raydium-sdk-v2'
 
 function getWallet(pk: string): Keypair {
   // assuming  private key to be base58 encoded
@@ -208,7 +208,7 @@ async function getUsdPrice(): Promise<number> {
   const raydium = await Raydium.load({
     connection,
   })
-  const poolId = "8sLbNZoA1cfnvMJLPfp98ZLAnFSYCFApfJKMbiXNLwxj"
+  const poolId = "8sLbNZoA1cfnvMJLPfp98ZLAnFSYCFApfJKMbiXNLwxj" // sol/usdc  pool id
   const pool = await raydium.api.fetchPoolById({
     ids: poolId
   })
@@ -218,7 +218,7 @@ async function getUsdPrice(): Promise<number> {
 }
   } catch(e){
 console.log("error ---->",e)
-return 0
+return solPriceCached
   }
 }
 
