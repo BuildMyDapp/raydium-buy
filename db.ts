@@ -9,9 +9,9 @@ export async function saveBuyTx( mint_address: string, pool_address:string,tx_ha
         const tx = await sql(`
         INSERT INTO buys ( mint_address, pool_address,tx_hash, amount,sol_amount, timestamp)
         VALUES (
-           ${mint_address},
-           ${pool_address},
-           ${tx_hash},
+           '${mint_address}',
+           '${pool_address}',
+           '${tx_hash}',
            ${sol_amount}, 
            ${amount}, 
            ${timestamp},      
@@ -27,9 +27,9 @@ export async function saveSellTx( mint_address: string,pool_address:string,  tx_
         const tx = await sql(`
         INSERT INTO sells (mint_address, pool_address,tx_hash, amount,sol_amount, timestamp)
         VALUES (
-       ${mint_address},
-       ${pool_address},
-       ${tx_hash},
+         '${mint_address}',
+           '${pool_address}',
+           '${tx_hash}',
        ${sol_amount},
        ${amount},
        ${timestamp},
@@ -98,4 +98,26 @@ async function deleteBuyTable() {
 }
 
 
+
+
+
+async function createNotForSaleTable() {
+    try {
+        const tx = await sql(`CREATE TABLE NotForSale (
+    id SERIAL PRIMARY KEY,
+    mint_address VARCHAR(100) NOT NULL
+);`);
+        console.log("table created", tx);
+    } catch (err) {
+        console.log(err);
+    }
+}
+export async function getNotForSaleList() {
+    try {
+        const result = await sql(`SELECT * from NotForSale`)
+        return result
+    } catch (err) {
+        console.log(err);
+    }
+}
 

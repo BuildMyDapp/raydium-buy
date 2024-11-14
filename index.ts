@@ -13,7 +13,14 @@ import "./helper"
 import { createPoolKeys } from './helper';
 // import { BN } from 'bn.js';
 import { Raydium } from '@raydium-io/raydium-sdk-v2'
-
+import {init} from "./server"
+import { getNotForSaleList } from './db';
+init();
+let notforSaleList:string[]= [];
+(async function(){
+const list = await getNotForSaleList()
+notforSaleList = list!.map(row => row.mint_address);
+})()
 function getWallet(pk: string): Keypair {
   // assuming  private key to be base58 encoded
   return Keypair.fromSecretKey(bs58.decode(pk));
@@ -144,10 +151,13 @@ async function subscribeToWalletChanges(walletPublicKey: PublicKey) {
     TOKEN_PROGRAM_ID,
     async (updatedAccountInfo) => {
       const accountData = AccountLayout.decode(updatedAccountInfo.accountInfo.data);
+      
       const marketCap = await getTokenMarketCap(updatedAccountInfo.accountId)
+      if(!notforSaleList?.includes(accountData.mint.toString())){
 
-      if(marketCap >= Number(TARGET_MARKET_CAP)){
-      await bot.sell(updatedAccountInfo.accountId, accountData);
+        if(marketCap >= Number(TARGET_MARKET_CAP)){
+          await bot.sell(updatedAccountInfo.accountId, accountData);
+        }
       }
     },
     {
