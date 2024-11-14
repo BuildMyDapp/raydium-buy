@@ -96,17 +96,13 @@ async function subscribeToRaydiumPools() {
       
         if (!exists && poolOpenTime > now) {
           poolCache.save(updatedAccountInfo.accountId.toString(), poolState);
-          const marketCap = await getTokenMarketCap(updatedAccountInfo.accountId)
          
-          if(marketCap >= Number(TARGET_MARKET_CAP)){
-            console.log("marketCap",marketCap)
             console.log({
               "token_address": poolState.baseMint.toString(),
               "pool_address": updatedAccountInfo.accountId.toString()
             })
             // Check if the token is a pump fun graduated token and print the pool details and the token address.
             await bot.buy(updatedAccountInfo.accountId, poolState);
-          }
          
 
         }
@@ -148,8 +144,11 @@ async function subscribeToWalletChanges(walletPublicKey: PublicKey) {
     TOKEN_PROGRAM_ID,
     async (updatedAccountInfo) => {
       const accountData = AccountLayout.decode(updatedAccountInfo.accountInfo.data);
+      const marketCap = await getTokenMarketCap(updatedAccountInfo.accountId)
 
+      if(marketCap >= Number(TARGET_MARKET_CAP)){
       await bot.sell(updatedAccountInfo.accountId, accountData);
+      }
     },
     {
       commitment: connection.commitment,
