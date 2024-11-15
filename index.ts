@@ -37,7 +37,8 @@ const PRICE_CHECK_INTERVAL = retrieveEnvVariable('PRICE_CHECK_INTERVAL', logger)
 const PRICE_CHECK_DURATION = retrieveEnvVariable('PRICE_CHECK_DURATION', logger);
 const TAKE_PROFIT = retrieveEnvVariable('TAKE_PROFIT', logger);
 const STOP_LOSS = retrieveEnvVariable('STOP_LOSS', logger);
-const TARGET_MARKET_CAP = retrieveEnvVariable('TARGET_MARKET_CAP', logger);
+const TARGET_BUY_MARKET_CAP = retrieveEnvVariable('TARGET_BUY_MARKET_CAP', logger);
+const TARGET_SELL_MARKET_CAP = retrieveEnvVariable('TARGET_SELL_MARKET_CAP', logger);
 
 
 const wallet = getWallet(PRIVATE_KEY.trim());
@@ -108,8 +109,12 @@ async function subscribeToRaydiumPools() {
               "token_address": poolState.baseMint.toString(),
               "pool_address": updatedAccountInfo.accountId.toString()
             })
+            const marketCap = await getTokenMarketCap(updatedAccountInfo.accountId)
+      
+              if(marketCap >= Number(TARGET_BUY_MARKET_CAP)){
+                await bot.buy(updatedAccountInfo.accountId, poolState);
+              }
             // Check if the token is a pump fun graduated token and print the pool details and the token address.
-            await bot.buy(updatedAccountInfo.accountId, poolState);
          
 
         }
@@ -155,7 +160,7 @@ async function subscribeToWalletChanges(walletPublicKey: PublicKey) {
       const marketCap = await getTokenMarketCap(updatedAccountInfo.accountId)
       if(!notforSaleList?.includes(accountData.mint.toString())){
 
-        if(marketCap >= Number(TARGET_MARKET_CAP)){
+        if(marketCap >= Number(TARGET_SELL_MARKET_CAP)){
           await bot.sell(updatedAccountInfo.accountId, accountData);
         }
       }
