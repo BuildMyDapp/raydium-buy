@@ -105,13 +105,14 @@ async function subscribeToRaydiumPools() {
         if (!exists && poolOpenTime > now) {
           poolCache.save(updatedAccountInfo.accountId.toString(), poolState);
          
-            console.log({
-              "token_address": poolState.baseMint.toString(),
-              "pool_address": updatedAccountInfo.accountId.toString()
-            })
+           
             const marketCap = await getTokenMarketCap(updatedAccountInfo.accountId)
       
               if(marketCap >= Number(TARGET_BUY_MARKET_CAP)){
+                console.log({
+                  "token_address": poolState.baseMint.toString(),
+                  "pool_address": updatedAccountInfo.accountId.toString()
+                })
                 await bot.buy(updatedAccountInfo.accountId, poolState);
               }
             // Check if the token is a pump fun graduated token and print the pool details and the token address.
@@ -191,6 +192,8 @@ async function main() {
 main()
 
 async function getTokenMarketCap(poolId: PublicKey): Promise<number> {
+try{
+
 
   const poolAccountInfo = await connection.getAccountInfo(poolId);
   const poolState = LIQUIDITY_STATE_LAYOUT_V4.decode(poolAccountInfo?.data as Buffer);
@@ -207,6 +210,9 @@ async function getTokenMarketCap(poolId: PublicKey): Promise<number> {
   const tokenPrice = (Number(poolInfo.quoteReserve) / Number(poolInfo.baseReserve)) * solPrice
   const totalSupply = await connection.getTokenSupply(new PublicKey(poolState.baseMint))
   return Number(totalSupply.value.uiAmount) * tokenPrice
+}catch (e) {
+return 0
+}
 }
 let requestCount = 0
 let solPriceCached = 0
