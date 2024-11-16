@@ -87,10 +87,6 @@ interface BotConfig {
   buySlippage: number;
   sellSlippage: number;
   oneTokenAtATime: boolean;
-  priceCheckInterval:number;
-  priceCheckDuration:number;
-  takeProfit:number;
-  stopLoss:number;
 }
 
 
@@ -158,7 +154,7 @@ export class Bot {
           );
 
           if (result.confirmed) {
-            await saveBuyTx(poolState.baseMint.toString(),accountId.toString(),result.signature?.toString(),Number(this.config.quoteAmount),Number(this.config.quoteAmount) );
+            await saveBuyTx(poolState.baseMint.toString(),accountId.toString(),result.signature?.toString(),Number(this.config.quoteAmount.numerator));
 
             logger.info(
               {
@@ -221,7 +217,6 @@ export class Bot {
       const market = await this.marketStorage.get(poolData.state.marketId.toString());
       const poolKeys: LiquidityPoolKeysV4 = createPoolKeys(new PublicKey(poolData.id), poolData.state, market);
 
-      await this.priceMatch(tokenAmountIn, poolKeys);
 
       for (let i = 0; i < this.config.maxSellRetries; i++) {
         try {
@@ -243,7 +238,7 @@ export class Bot {
           );
 
           if (result.confirmed) {
-            await saveSellTx(rawAccount.mint.toString(),accountId.toString(),result.signature?.toString(),Number(this.config.quoteAmount),Number(tokenAmountIn));
+            await saveSellTx(rawAccount.mint.toString(),accountId.toString(),result.signature?.toString(),Number(tokenAmountIn.numerator));
 
             logger.info(
               {
@@ -345,56 +340,5 @@ export class Bot {
     return this.txExecutor.executeAndConfirm(transaction, wallet, latestBlockhash);
   }
 
-  private async priceMatch(amountIn: TokenAmount, poolKeys: LiquidityPoolKeysV4) {
-    if (this.config.priceCheckDuration === 0 || this.config.priceCheckInterval === 0) {
-      return;
-    }
 
-    const timesToCheck = this.config.priceCheckDuration / this.config.priceCheckInterval;
-    const profitFraction = this.config.quoteAmount.mul(this.config.takeProfit).numerator.div(new BN(100));
-    const profitAmount = new TokenAmount(this.config.quoteToken, profitFraction, true);
-    const takeProfit = this.config.quoteAmount.add(profitAmount);
-
-    const lossFraction = this.config.quoteAmount.mul(this.config.stopLoss).numerator.div(new BN(100));
-    const lossAmount = new TokenAmount(this.config.quoteToken, lossFraction, true);
-    const stopLoss = this.config.quoteAmount.subtract(lossAmount);
-    const slippage = new Percent(this.config.sellSlippage, 100);
-    let timesChecked = 0;
-
-    do {
-      try {
-        const poolInfo = await Liquidity.fetchInfo({
-          connection: this.connection,
-          poolKeys,
-        });
-
-        const amountOut = Liquidity.computeAmountOut({
-          poolKeys,
-          poolInfo,
-          amountIn: amountIn,
-          currencyOut: this.config.quoteToken,
-          slippage,
-        }).amountOut;
-
-        logger.debug(
-          { mint: poolKeys.baseMint.toString() },
-          `Take profit: ${takeProfit.toFixed()} | Stop loss: ${stopLoss.toFixed()} | Current: ${amountOut.toFixed()}`,
-        );
-
-        if (amountOut.lt(stopLoss)) {
-          break;
-        }
-
-        if (amountOut.gt(takeProfit)) {
-          break;
-        }
-
-        await sleep(this.config.priceCheckInterval);
-      } catch (e) {
-        logger.trace({ mint: poolKeys.baseMint.toString(), e }, `Failed to check token price`);
-      } finally {
-        timesChecked++;
-      }
-    } while (timesChecked < timesToCheck);
-  }
 }

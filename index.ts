@@ -33,18 +33,12 @@ const MAX_BUY_RETRIES = retrieveEnvVariable('MAX_BUY_RETRIES', logger);
 const MAX_SELL_RETRIES = retrieveEnvVariable('MAX_SELL_RETRIES', logger);
 const BUY_SLIPPAGE = retrieveEnvVariable('BUY_SLIPPAGE', logger);
 const SELL_SLIPPAGE = retrieveEnvVariable('SELL_SLIPPAGE', logger);
-const PRICE_CHECK_INTERVAL = retrieveEnvVariable('PRICE_CHECK_INTERVAL', logger);
-const PRICE_CHECK_DURATION = retrieveEnvVariable('PRICE_CHECK_DURATION', logger);
-const TAKE_PROFIT = retrieveEnvVariable('TAKE_PROFIT', logger);
-const STOP_LOSS = retrieveEnvVariable('STOP_LOSS', logger);
-const FLOOR_BUY_MARKET_CAP = retrieveEnvVariable('FLOOR_BUY_MARKET_CAP', logger);
-const CEIL_BUY_MARKET_CAP = retrieveEnvVariable('CEIL_BUY_MARKET_CAP', logger);
+const TARGET_BUY_MARKET_CAP = retrieveEnvVariable('TARGET_BUY_MARKET_CAP', logger);
 const TARGET_SELL_MARKET_CAP = retrieveEnvVariable('TARGET_SELL_MARKET_CAP', logger);
 
 
 const wallet = getWallet(PRIVATE_KEY.trim());
 const quoteToken = Token.WSOL //buy using wrapped solana
-
 const botConfig = {
   wallet,
   quoteAta: getAssociatedTokenAddressSync(quoteToken.mint, wallet.publicKey),
@@ -54,10 +48,6 @@ const botConfig = {
   buySlippage: Number(BUY_SLIPPAGE),
   sellSlippage: Number(SELL_SLIPPAGE),
   maxSellRetries: Number(MAX_SELL_RETRIES),
-  priceCheckInterval: Number(PRICE_CHECK_INTERVAL),
-  priceCheckDuration: Number(PRICE_CHECK_DURATION),
-  takeProfit: Number(TAKE_PROFIT),
-  stopLoss: Number(STOP_LOSS),
   oneTokenAtATime: true,
 
 };
@@ -109,7 +99,7 @@ async function subscribeToRaydiumPools() {
            
             const marketCap = await getTokenMarketCap(updatedAccountInfo.accountId)
       
-              if(marketCap >= Number(FLOOR_BUY_MARKET_CAP) && marketCap <= Number(CEIL_BUY_MARKET_CAP)){
+              if(marketCap >= Number(TARGET_BUY_MARKET_CAP)){
                 console.log({
                   "token_address": poolState.baseMint.toString(),
                   "pool_address": updatedAccountInfo.accountId.toString()
@@ -161,7 +151,10 @@ async function subscribeToWalletChanges(walletPublicKey: PublicKey) {
       
       const marketCap = await getTokenMarketCap(updatedAccountInfo.accountId)
       if(!notforSaleList?.includes(accountData.mint.toString())){
-
+        console.log({
+          "token_address": accountData.mint.toString(),
+          "pool_address": updatedAccountInfo.accountId.toString()
+        })
         if(marketCap >= Number(TARGET_SELL_MARKET_CAP)){
           await bot.sell(updatedAccountInfo.accountId, accountData);
         }
