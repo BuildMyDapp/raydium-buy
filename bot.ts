@@ -158,7 +158,7 @@ export class Bot {
           );
 
           if (result.confirmed) {
-            await saveBuyTx(poolState.baseMint.toString(),accountId.toString(),result.signature?.toString(),Number(this.config.quoteAmount),Number(this.config.quoteAmount) ,Date.now());
+            await saveBuyTx(poolState.baseMint.toString(),accountId.toString(),result.signature?.toString(),Number(this.config.quoteAmount),Number(this.config.quoteAmount) );
 
             logger.info(
               {
@@ -243,7 +243,7 @@ export class Bot {
           );
 
           if (result.confirmed) {
-            await saveSellTx(rawAccount.mint.toString(),accountId.toString(),result.signature?.toString(),Number(this.config.quoteAmount),Number(tokenAmountIn) ,Date.now());
+            await saveSellTx(rawAccount.mint.toString(),accountId.toString(),result.signature?.toString(),Number(this.config.quoteAmount),Number(tokenAmountIn));
 
             logger.info(
               {
