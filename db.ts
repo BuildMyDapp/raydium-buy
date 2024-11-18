@@ -1,23 +1,11 @@
-import { neon } from '@neondatabase/serverless';
-import { logger } from './logger';
-import { retrieveEnvVariable } from './env';
 import BuyModel from './db/buy-schema';
+import NotForSaleModel from './db/not-for-sale';
 import SellModel from './db/sell-schema';
-const db_url = retrieveEnvVariable('DB_URL', logger);
 
-const sql = neon(db_url);
 export async function saveBuyTx(mint_address: string, pool_address: string, tx_hash: string | undefined, sol_amount: number) {
     try {
         console.log(mint_address, pool_address, tx_hash, sol_amount)
-        //         const tx = await sql(`
-        //         INSERT INTO buys (mint_address, pool_address,tx_hash, sol_amount)
-        //       VALUES (
-        //    '${mint_address}',
-        //    '${pool_address}',
-        //    '${tx_hash}',
-        //    ${sol_amount}
-        // );`  
-        //     );
+
 
         const tx = await BuyModel.create({
             mint_address,
@@ -42,14 +30,7 @@ export async function saveSellTx(mint_address: string, pool_address: string, tx_
             tx_hash,
             amount
         })
-        //     const tx = await sql(`
-        //     INSERT INTO sells (mint_address, pool_address,tx_hash,amount, timestamp)
-        //     VALUES (
-        //      '${mint_address}',
-        //        '${pool_address}',
-        //        '${tx_hash}',
-        //    ${amount}
-        //     );`);
+
         console.log("db save ", tx);
     } catch (err) {
         console.log(err);
@@ -111,22 +92,22 @@ export async function saveSellTx(mint_address: string, pool_address: string, tx_
 
 
 
-async function createNotForSaleTable() {
-    try {
-        const tx = await sql(`CREATE TABLE NotForSale (
-    id SERIAL PRIMARY KEY,
-    mint_address VARCHAR(100) NOT NULL
-);`);
-        console.log("table created", tx);
-    } catch (err) {
-        console.log(err);
-    }
-}
+// async function createNotForSaleTable() {
+//     try {
+//         const tx = await sql(`CREATE TABLE NotForSale (
+//     id SERIAL PRIMARY KEY,
+//     mint_address VARCHAR(100) NOT NULL
+// );`);
+//         console.log("table created", tx);
+//     } catch (err) {
+//         console.log(err);
+//     }
+// }
 
 
 export async function getNotForSaleList() {
     try {
-        const result = await sql(`SELECT * from NotForSale`)
+        const result = await NotForSaleModel.find()
         return result
     } catch (err) {
         console.log(err);
