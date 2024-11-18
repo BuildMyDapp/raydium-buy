@@ -16,9 +16,10 @@ import { Raydium } from '@raydium-io/raydium-sdk-v2'
 import { getNotForSaleList, saveBuyTx, saveSellTx } from './db';
 import { connectDB } from './db/database';
 import { runTgCommands } from './telegram/tgBot';
+import { init } from './server';
 connectDB();
 runTgCommands()
-
+init()
 let notforSaleList:string[]= [];
 (async function(){
 
