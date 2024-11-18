@@ -1,80 +1,68 @@
+import { retrieveEnvVariable } from "../env";
+import { logger } from "../logger";
+import CommonUtils from "../utils/common";
+import { addNotSellToken, deleteNotSellToken, getNotSellToken, listOfBoughtToken } from "./methods";
 const TelegramBot = require("node-telegram-bot-api");
-const {
-  setCustomCommands,
-  getTotalLpDistributed,
-  getTotalEtthlinqBurned,
-  getLpTokenPrice,
-  getPendingRewards,
-  totalLPStaked,
-  totalSigmaStaked,
-  currentEthReward,
-  distributedEthReward,
-  lpTokenPrice,
-  sigma33Price,
-  sigma33LpDistributed,
-  sigma33TokenDistributed,
-} = require("./app/helper");
-const { env } = require("./environment");
-const bot = new TelegramBot(env.BOT_TOKEN, { polling: true });
 
-setCustomCommands(bot);
+// Environment configuration
+const botToken: string = retrieveEnvVariable("BOT_TOKEN", logger);
+const bot = new TelegramBot(botToken, { polling: true });
 
-const commandsRecheck = (command) => {
-  if (command?.startsWith("/s33lpstaked")) {
-    return "/s33lpstaked";
-  } else if (command?.startsWith("/s33staked")) {
-    return "/s33staked";
-  } else if (command?.startsWith("/s33lp_price")) {
-    return "/s33lp_price";
-  } else if (command?.startsWith("/s33price")) {
-    return "/s33price";
-  } else if (command?.startsWith("/s33price")) {
-    return "/s33price";
-  } else if (command?.startsWith("/s33lp_distributed")) {
-    return "/s33lp_distributed";
-  } else if (command?.startsWith("/s33_distributed")) {
-    return "/s33_distributed";
-  }
+// Set custom commands
+CommonUtils.setCustomCommands(bot);
+
+// Recheck commands function
+const commandsRecheck = (command: string): string | undefined => {
+  if (command?.toLowerCase().startsWith("/add_not_sell_token")) {
+    return "/add_not_sell_token";
+  } else if (command?.startsWith("/list_not_sell_token")) {
+    return "/list_not_sell_token";
+  } else if (command?.startsWith("/delete_not_sell_token")) {
+    return "/delete_not_sell_token";
+  } else if (command?.startsWith("/list_of_bought_tokens")) {
+    return "/list_of_bought_tokens";
+  } 
+  return undefined; // Return undefined if no match is found
 };
 
-bot.on("message", async (msg) => {
+// Handle incoming messages
+bot.on("message", async (msg:any) => {
   const chatId = msg?.chat?.id;
   const forumTopic = msg?.message_thread_id;
-
-  console.log("chatId", msg);
-
   const messageText = msg?.text;
+
+  console.log("chatId", msg,messageText);
 
   if (messageText?.startsWith("/")) {
     let command = messageText.split(" ")[0];
     command = commandsRecheck(command);
 
-    // Handle commands as usual
-    switch (command) {
-      case "/s33lpstaked":
-        totalLPStaked(chatId, bot, forumTopic);
-        break;
-      case "/s33staked":
-        totalSigmaStaked(chatId, bot, forumTopic);
-        break;
-      case "/s33lp_price":
-        lpTokenPrice(chatId, bot, forumTopic);
-        break;
-      case "/s33price":
-        sigma33Price(chatId, bot, forumTopic);
-        break;
-      case "/s33lp_distributed":
-        sigma33LpDistributed(chatId, bot, forumTopic);
-        break;
-      case "/s33_distributed":
-        sigma33TokenDistributed(chatId, bot, forumTopic);
-        break;
-      default:
-        console.log("messageText.startsWith");
-        break;
+    if (command) {
+      // Handle commands as usual
+      switch (command) {
+        case "/add_not_sell_token":
+           addNotSellToken(chatId, bot,messageText);
+          break;
+        case "/list_not_sell_token":
+          await getNotSellToken(chatId, bot);
+          break;
+        case "/delete_not_sell_token":
+          await deleteNotSellToken(chatId, bot, messageText);
+          break;
+        case "/list_of_bought_tokens":
+          await listOfBoughtToken(chatId, bot);
+          break;
+        default:
+          console.log("Unknown command:", command);
+          break;
+      }
     }
   }
 });
 
-const runTgCommands = () => {};
-module.exports = { runTgCommands };
+// Define and export `runTgCommands`
+const runTgCommands = (): void => {
+  console.log("Telegram commands handler is running.");
+};
+
+export { runTgCommands };
