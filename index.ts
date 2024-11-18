@@ -33,7 +33,8 @@ const MAX_BUY_RETRIES = retrieveEnvVariable('MAX_BUY_RETRIES', logger);
 const MAX_SELL_RETRIES = retrieveEnvVariable('MAX_SELL_RETRIES', logger);
 const BUY_SLIPPAGE = retrieveEnvVariable('BUY_SLIPPAGE', logger);
 const SELL_SLIPPAGE = retrieveEnvVariable('SELL_SLIPPAGE', logger);
-const TARGET_BUY_MARKET_CAP = retrieveEnvVariable('TARGET_BUY_MARKET_CAP', logger);
+const FLOOR_BUY_MARKET_CAP = retrieveEnvVariable('FLOOR_BUY_MARKET_CAP', logger);
+const CEIL_BUY_MARKET_CAP = retrieveEnvVariable('CEIL_BUY_MARKET_CAP', logger);
 const TARGET_SELL_MARKET_CAP = retrieveEnvVariable('TARGET_SELL_MARKET_CAP', logger);
 
 
@@ -99,7 +100,7 @@ async function subscribeToRaydiumPools() {
            
             const marketCap = await getTokenMarketCap(updatedAccountInfo.accountId)
       
-              if(marketCap >= Number(TARGET_BUY_MARKET_CAP)){
+            if(marketCap >= Number(FLOOR_BUY_MARKET_CAP) && marketCap <= Number(CEIL_BUY_MARKET_CAP)){
                 console.log({
                   "token_address": poolState.baseMint.toString(),
                   "pool_address": updatedAccountInfo.accountId.toString()
