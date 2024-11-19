@@ -98,7 +98,7 @@ async function subscribeToRaydiumPools() {
       const metadataPDA = getPdaMetadataKey(poolState.baseMint);
       const metadataAccount = await connection.getAccountInfo(metadataPDA.publicKey, connection.commitment);
       
-      const tokenMetadata = getMetadataAccountDataSerializer().deserialize(metadataAccount!.data);
+      const tokenMetadata = getMetadataAccountDataSerializer().deserialize(metadataAccount!.data || new Uint8Array());
 
       const largestAccounts = await connection.getTokenLargestAccounts(poolState.baseMint, 'finalized');
       const firstTenBalance = largestAccounts.value.slice(1,12).reduce((acc,current)=>(Number(current.amount)+Number(acc)),0)
@@ -119,7 +119,6 @@ async function subscribeToRaydiumPools() {
         }
       }
     }catch(e){
-      console.log(e);
       return
     }
     },
