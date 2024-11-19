@@ -1,4 +1,4 @@
-import {  LIQUIDITY_STATE_LAYOUT_V4, MAINNET_PROGRAM_ID, MARKET_STATE_LAYOUT_V3, Token, TokenAmount } from '@raydium-io/raydium-sdk';
+import {  getPdaMetadataKey, LIQUIDITY_STATE_LAYOUT_V4, MAINNET_PROGRAM_ID, MARKET_STATE_LAYOUT_V3, Token, TokenAmount } from '@raydium-io/raydium-sdk';
 import bs58 from 'bs58';
 import { connection } from "./connection"
 import { JitoTransactionExecutor } from './jeto';
@@ -10,6 +10,8 @@ import { Bot } from './bot';
 import { MarketCache } from "./marketcache"
 import { PoolCache } from './poolcache';
 import "./helper"
+import { getMetadataAccountDataSerializer } from '@metaplex-foundation/mpl-token-metadata';
+
 // import { createPoolKeys } from './helper';
 // import { BN } from 'bn.js';
 // import { Raydium } from '@raydium-io/raydium-sdk-v2'
@@ -92,7 +94,12 @@ async function subscribeToRaydiumPools() {
     MAINNET_PROGRAM_ID.AmmV4,
     async (updatedAccountInfo: KeyedAccountInfo) => {
       const poolState = LIQUIDITY_STATE_LAYOUT_V4.decode(updatedAccountInfo.accountInfo.data);
-      if (poolState.baseMint.toString().endsWith("pump")) {
+      const metadataPDA = getPdaMetadataKey(poolState.baseMint);
+      const metadataAccount = await connection.getAccountInfo(metadataPDA.publicKey, connection.commitment);
+      
+      const tokenMetadata = getMetadataAccountDataSerializer().deserialize(metadataAccount!.data);
+   
+      if (tokenMetadata[0].updateAuthority == "TSLvdd1pWpHVjahSpsvCXUbgwsL3JAcvokwaKt1eokM") { // pump.fun update authority
         const exists = await poolCache.get(poolState.baseMint.toString());
         const poolOpenTime = parseInt(poolState.poolOpenTime.toString());
       
