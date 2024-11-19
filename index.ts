@@ -1,4 +1,4 @@
-import {  getPdaMetadataKey, LIQUIDITY_STATE_LAYOUT_V4, MAINNET_PROGRAM_ID, MARKET_STATE_LAYOUT_V3, Token, TokenAmount } from '@raydium-io/raydium-sdk';
+import { getPdaMetadataKey, LIQUIDITY_STATE_LAYOUT_V4, MAINNET_PROGRAM_ID, MARKET_STATE_LAYOUT_V3, Token, TokenAmount } from '@raydium-io/raydium-sdk';
 import bs58 from 'bs58';
 import { connection } from "./connection"
 import { JitoTransactionExecutor } from './jeto';
@@ -15,13 +15,14 @@ import { getMetadataAccountDataSerializer } from '@metaplex-foundation/mpl-token
 // import { createPoolKeys } from './helper';
 // import { BN } from 'bn.js';
 // import { Raydium } from '@raydium-io/raydium-sdk-v2'
-import {init} from "./server"
+import { init } from "./server"
 import { getNotForSaleList } from './db';
+import { getTokenHoldersInfo } from './utils/token-holders';
 init();
-let notforSaleList:string[]= [];
-(async function(){
-const list = await getNotForSaleList()
-notforSaleList = list!.map(row => row.mint_address);
+let notforSaleList: string[] = [];
+(async function () {
+  const list = await getNotForSaleList()
+  notforSaleList = list!.map(row => row.mint_address);
 })()
 function getWallet(pk: string): Keypair {
   // assuming  private key to be base58 encoded
@@ -51,8 +52,8 @@ const botConfig = {
   sellSlippage: Number(SELL_SLIPPAGE),
   maxSellRetries: Number(MAX_SELL_RETRIES),
   oneTokenAtATime: true,
-  marketCapCheckInterval:Number(MARKET_CAP_CHECK_INTERVAL),
-  marketCapCheckDuration:Number(MARKET_CAP_CHECK_DURATION)
+  marketCapCheckInterval: Number(MARKET_CAP_CHECK_INTERVAL),
+  marketCapCheckDuration: Number(MARKET_CAP_CHECK_DURATION)
 
 
 };
@@ -87,40 +88,41 @@ const subscriptionConfig: ProgramAccountSubscriptionConfig = {
     },
   ],
 }
-const now = Math.floor(new Date().getTime() / 1000); 
+const now = Math.floor(new Date().getTime() / 1000);
 
 async function subscribeToRaydiumPools() {
   return connection.onProgramAccountChange(
     MAINNET_PROGRAM_ID.AmmV4,
     async (updatedAccountInfo: KeyedAccountInfo) => {
-      try{
-      const poolState = LIQUIDITY_STATE_LAYOUT_V4.decode(updatedAccountInfo.accountInfo.data);
-      const metadataPDA = getPdaMetadataKey(poolState.baseMint);
-      const metadataAccount = await connection.getAccountInfo(metadataPDA.publicKey, connection.commitment);
-      
-      const tokenMetadata = getMetadataAccountDataSerializer().deserialize(metadataAccount!.data || new Uint8Array());
+      try {
+        const poolState = LIQUIDITY_STATE_LAYOUT_V4.decode(updatedAccountInfo.accountInfo.data);
+        const metadataPDA = getPdaMetadataKey(poolState.baseMint);
+        const metadataAccount = await connection.getAccountInfo(metadataPDA.publicKey, connection.commitment);
 
-      const largestAccounts = await connection.getTokenLargestAccounts(poolState.baseMint, 'finalized');
-      const firstTenBalance = largestAccounts.value.slice(1,12).reduce((acc,current)=>(Number(current.amount)+Number(acc)),0)
+        const tokenMetadata = getMetadataAccountDataSerializer().deserialize(metadataAccount!.data || new Uint8Array());
 
-      const totalSupply = await connection.getTokenSupply(new PublicKey(poolState.baseMint))
-       
-      if(firstTenBalance >=  Number(totalSupply.value.uiAmount) * 10/100){
+        // const largestAccounts = await connection.getTokenLargestAccounts(poolState.baseMint, 'finalized');
+        // const firstTenBalance = largestAccounts.value.slice(1,12).reduce((acc,current)=>(Number(current.amount)+Number(acc)),0)
+        // console.log("poolState.baseMint",poolState.baseMint.toString())
+        const firstTenBalance = await getTokenHoldersInfo(poolState.baseMint.toString())
+        const totalSupply = await connection.getTokenSupply(new PublicKey(poolState.baseMint))
+
+        if (Number(firstTenBalance) <= Number(totalSupply.value.uiAmount) * 15 / 100) {
+          return
+        }
+        if (tokenMetadata[0].updateAuthority == "TSLvdd1pWpHVjahSpsvCXUbgwsL3JAcvokwaKt1eokM") { // pump.fun update authority
+          const exists = await poolCache.get(poolState.baseMint.toString());
+          const poolOpenTime = parseInt(poolState.poolOpenTime.toString());
+
+          if (!exists && poolOpenTime > now) {
+            poolCache.save(updatedAccountInfo.accountId.toString(), poolState);
+
+            await bot.buy(updatedAccountInfo.accountId, poolState);
+          }
+        }
+      } catch (e) {
         return
       }
-      if (tokenMetadata[0].updateAuthority == "TSLvdd1pWpHVjahSpsvCXUbgwsL3JAcvokwaKt1eokM") { // pump.fun update authority
-        const exists = await poolCache.get(poolState.baseMint.toString());
-        const poolOpenTime = parseInt(poolState.poolOpenTime.toString());
-      
-        if (!exists && poolOpenTime > now) {
-          poolCache.save(updatedAccountInfo.accountId.toString(), poolState);
-
-          await bot.buy(updatedAccountInfo.accountId, poolState);
-        }
-      }
-    }catch(e){
-      return
-    }
     },
     subscriptionConfig
   );
@@ -158,13 +160,13 @@ async function subscribeToWalletChanges(walletPublicKey: PublicKey) {
       if (accountData.mint.equals(quoteToken.mint)) {
         return;
       }
-      if(!notforSaleList?.includes(accountData.mint.toString())){
+      if (!notforSaleList?.includes(accountData.mint.toString())) {
         console.log({
           "token_address": accountData.mint.toString(),
           "pool_address": updatedAccountInfo.accountId.toString()
         })
-          
-          await bot.sell(updatedAccountInfo.accountId, accountData);
+
+        await bot.sell(updatedAccountInfo.accountId, accountData);
       }
     },
     {
