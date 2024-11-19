@@ -93,22 +93,21 @@ async function subscribeToRaydiumPools() {
   return connection.onProgramAccountChange(
     MAINNET_PROGRAM_ID.AmmV4,
     async (updatedAccountInfo: KeyedAccountInfo) => {
+      try{
       const poolState = LIQUIDITY_STATE_LAYOUT_V4.decode(updatedAccountInfo.accountInfo.data);
       const metadataPDA = getPdaMetadataKey(poolState.baseMint);
       const metadataAccount = await connection.getAccountInfo(metadataPDA.publicKey, connection.commitment);
       
       const tokenMetadata = getMetadataAccountDataSerializer().deserialize(metadataAccount!.data);
 
-      // const accs = await connection.getProgramAccounts(TOKEN_PROGRAM_ID, { dataSlice: { offset: 64, length: 8 }, filters: [{ dataSize: 165 }, { memcmp: { offset: 0, bytes: poolState.baseMint.toBase58() } }] });
-      // const nonZero = accs.filter((acc) => !acc.account.data.equals(Buffer.from([0, 0, 0, 0, 0, 0, 0, 0])));
-      // const firstTen = nonZero.slice(0, 10);
-      // const firstTenBalance = firstTen.reduce((acc,current)=>(current + acc.account.data.readBigUInt64LE()),0)
-      // console.log(firstTenBalance)
-      // const totalSupply = await connection.getTokenSupply(new PublicKey(poolState.baseMint))
+      const largestAccounts = await connection.getTokenLargestAccounts(poolState.baseMint, 'finalized');
+      const firstTenBalance = largestAccounts.value.slice(1,12).reduce((acc,current)=>(Number(current.amount)+Number(acc)),0)
+
+      const totalSupply = await connection.getTokenSupply(new PublicKey(poolState.baseMint))
        
-      // if(firstTenBalance >=  Number(totalSupply.value.uiAmount) * 10/100){
-      //   return
-      // }
+      if(firstTenBalance >=  Number(totalSupply.value.uiAmount) * 10/100){
+        return
+      }
       if (tokenMetadata[0].updateAuthority == "TSLvdd1pWpHVjahSpsvCXUbgwsL3JAcvokwaKt1eokM") { // pump.fun update authority
         const exists = await poolCache.get(poolState.baseMint.toString());
         const poolOpenTime = parseInt(poolState.poolOpenTime.toString());
@@ -119,6 +118,10 @@ async function subscribeToRaydiumPools() {
           await bot.buy(updatedAccountInfo.accountId, poolState);
         }
       }
+    }catch(e){
+      console.log(e);
+      return
+    }
     },
     subscriptionConfig
   );
