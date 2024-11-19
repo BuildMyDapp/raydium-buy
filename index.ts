@@ -98,7 +98,17 @@ async function subscribeToRaydiumPools() {
       const metadataAccount = await connection.getAccountInfo(metadataPDA.publicKey, connection.commitment);
       
       const tokenMetadata = getMetadataAccountDataSerializer().deserialize(metadataAccount!.data);
-   
+
+      // const accs = await connection.getProgramAccounts(TOKEN_PROGRAM_ID, { dataSlice: { offset: 64, length: 8 }, filters: [{ dataSize: 165 }, { memcmp: { offset: 0, bytes: poolState.baseMint.toBase58() } }] });
+      // const nonZero = accs.filter((acc) => !acc.account.data.equals(Buffer.from([0, 0, 0, 0, 0, 0, 0, 0])));
+      // const firstTen = nonZero.slice(0, 10);
+      // const firstTenBalance = firstTen.reduce((acc,current)=>(current + acc.account.data.readBigUInt64LE()),0)
+      // console.log(firstTenBalance)
+      // const totalSupply = await connection.getTokenSupply(new PublicKey(poolState.baseMint))
+       
+      // if(firstTenBalance >=  Number(totalSupply.value.uiAmount) * 10/100){
+      //   return
+      // }
       if (tokenMetadata[0].updateAuthority == "TSLvdd1pWpHVjahSpsvCXUbgwsL3JAcvokwaKt1eokM") { // pump.fun update authority
         const exists = await poolCache.get(poolState.baseMint.toString());
         const poolOpenTime = parseInt(poolState.poolOpenTime.toString());
