@@ -1,4 +1,4 @@
-import { Liquidity, LIQUIDITY_STATE_LAYOUT_V4, LiquidityPoolKeysV4, MAINNET_PROGRAM_ID, MARKET_STATE_LAYOUT_V3, Token, TokenAmount } from '@raydium-io/raydium-sdk';
+import { getPdaMetadataKey, LIQUIDITY_STATE_LAYOUT_V4, MAINNET_PROGRAM_ID, MARKET_STATE_LAYOUT_V3, Token, TokenAmount } from '@raydium-io/raydium-sdk';
 import bs58 from 'bs58';
 import { connection } from "./connection"
 import { JitoTransactionExecutor } from './jeto';
@@ -10,21 +10,19 @@ import { Bot } from './bot';
 import { MarketCache } from "./marketcache"
 import { PoolCache } from './poolcache';
 import "./helper"
-import { createPoolKeys } from './helper';
-// import { BN } from 'bn.js';
-import { Raydium } from '@raydium-io/raydium-sdk-v2'
-import { getNotForSaleList, saveBuyTx, saveSellTx } from './db';
-import { connectDB } from './db/database';
-import { runTgCommands } from './telegram/tgBot';
-import { init } from './server';
-connectDB();
-runTgCommands()
-init()
-let notforSaleList:string[]= [];
-(async function(){
+import { getMetadataAccountDataSerializer } from '@metaplex-foundation/mpl-token-metadata';
 
-const list = await getNotForSaleList()
-notforSaleList = list!.map(row => row.mint_address);
+// import { createPoolKeys } from './helper';
+// import { BN } from 'bn.js';
+// import { Raydium } from '@raydium-io/raydium-sdk-v2'
+import { init } from "./server"
+import { getNotForSaleList } from './db';
+import { getTokenHoldersInfo } from './utils/token-holders';
+init();
+let notforSaleList: string[] = [];
+(async function () {
+  const list = await getNotForSaleList()
+  notforSaleList = list!.map(row => row.mint_address);
 })()
 function getWallet(pk: string): Keypair {
   // assuming  private key to be base58 encoded
@@ -38,9 +36,8 @@ const MAX_BUY_RETRIES = retrieveEnvVariable('MAX_BUY_RETRIES', logger);
 const MAX_SELL_RETRIES = retrieveEnvVariable('MAX_SELL_RETRIES', logger);
 const BUY_SLIPPAGE = retrieveEnvVariable('BUY_SLIPPAGE', logger);
 const SELL_SLIPPAGE = retrieveEnvVariable('SELL_SLIPPAGE', logger);
-const FLOOR_BUY_MARKET_CAP = retrieveEnvVariable('FLOOR_BUY_MARKET_CAP', logger);
-const CEIL_BUY_MARKET_CAP = retrieveEnvVariable('CEIL_BUY_MARKET_CAP', logger);
-const TARGET_SELL_MARKET_CAP = retrieveEnvVariable('TARGET_SELL_MARKET_CAP', logger);
+const MARKET_CAP_CHECK_INTERVAL = retrieveEnvVariable('MARKET_CAP_CHECK_INTERVAL', logger);
+const MARKET_CAP_CHECK_DURATION = retrieveEnvVariable('MARKET_CAP_CHECK_DURATION', logger);
 
 
 const wallet = getWallet(PRIVATE_KEY.trim());
@@ -55,6 +52,9 @@ const botConfig = {
   sellSlippage: Number(SELL_SLIPPAGE),
   maxSellRetries: Number(MAX_SELL_RETRIES),
   oneTokenAtATime: true,
+  marketCapCheckInterval: Number(MARKET_CAP_CHECK_INTERVAL),
+  marketCapCheckDuration: Number(MARKET_CAP_CHECK_DURATION)
+
 
 };
 const txExecutor = new JitoTransactionExecutor(CUSTOM_FEE, connection);
@@ -88,38 +88,41 @@ const subscriptionConfig: ProgramAccountSubscriptionConfig = {
     },
   ],
 }
-const now = Math.floor(new Date().getTime() / 1000); 
+const now = Math.floor(new Date().getTime() / 1000);
 
 async function subscribeToRaydiumPools() {
   return connection.onProgramAccountChange(
     MAINNET_PROGRAM_ID.AmmV4,
     async (updatedAccountInfo: KeyedAccountInfo) => {
-      const poolState = LIQUIDITY_STATE_LAYOUT_V4.decode(updatedAccountInfo.accountInfo.data);
-      if (poolState.baseMint.toString().endsWith("pump")) {
-        const exists = await poolCache.get(poolState.baseMint.toString());
-        const poolOpenTime = parseInt(poolState.poolOpenTime.toString());
-      
-        if (!exists && poolOpenTime > now) {
-          poolCache.save(updatedAccountInfo.accountId.toString(), poolState);
-         
-           
-            const marketCap = await getTokenMarketCap(updatedAccountInfo.accountId)
-      
-            if(marketCap >= Number(FLOOR_BUY_MARKET_CAP) && marketCap <= Number(CEIL_BUY_MARKET_CAP)){
-                console.log({
-                  "token_address": poolState.baseMint.toString(),
-                  "pool_address": updatedAccountInfo.accountId.toString()
-                })
-                await bot.buy(updatedAccountInfo.accountId, poolState);
-              }
-            // Check if the token is a pump fun graduated token and print the pool details and the token address.
-         
+      try {
+        const poolState = LIQUIDITY_STATE_LAYOUT_V4.decode(updatedAccountInfo.accountInfo.data);
+        const metadataPDA = getPdaMetadataKey(poolState.baseMint);
+        const metadataAccount = await connection.getAccountInfo(metadataPDA.publicKey, connection.commitment);
 
+        const tokenMetadata = getMetadataAccountDataSerializer().deserialize(metadataAccount!.data || new Uint8Array());
+
+        // const largestAccounts = await connection.getTokenLargestAccounts(poolState.baseMint, 'finalized');
+        // const firstTenBalance = largestAccounts.value.slice(1,12).reduce((acc,current)=>(Number(current.amount)+Number(acc)),0)
+        // console.log("poolState.baseMint",poolState.baseMint.toString())
+        const firstTenBalance = await getTokenHoldersInfo(poolState.baseMint.toString())
+        const totalSupply = await connection.getTokenSupply(new PublicKey(poolState.baseMint))
+
+        if (Number(firstTenBalance) >= Number(totalSupply.value.uiAmount) * 15 / 100) {
+          return
         }
+        if (tokenMetadata[0].updateAuthority == "TSLvdd1pWpHVjahSpsvCXUbgwsL3JAcvokwaKt1eokM") { // pump.fun update authority
+          const exists = await poolCache.get(poolState.baseMint.toString());
+          const poolOpenTime = parseInt(poolState.poolOpenTime.toString());
 
+          if (!exists && poolOpenTime > now) {
+            poolCache.save(updatedAccountInfo.accountId.toString(), poolState);
 
+            await bot.buy(updatedAccountInfo.accountId, poolState);
+          }
+        }
+      } catch (e) {
+        return
       }
-
     },
     subscriptionConfig
   );
@@ -154,16 +157,16 @@ async function subscribeToWalletChanges(walletPublicKey: PublicKey) {
     TOKEN_PROGRAM_ID,
     async (updatedAccountInfo) => {
       const accountData = AccountLayout.decode(updatedAccountInfo.accountInfo.data);
-      
-      const marketCap = await getTokenMarketCap(updatedAccountInfo.accountId)
-      if(!notforSaleList?.includes(accountData.mint.toString())){
+      if (accountData.mint.equals(quoteToken.mint)) {
+        return;
+      }
+      if (!notforSaleList?.includes(accountData.mint.toString())) {
         console.log({
           "token_address": accountData.mint.toString(),
           "pool_address": updatedAccountInfo.accountId.toString()
         })
-        if(marketCap >= Number(TARGET_SELL_MARKET_CAP)){
-          await bot.sell(updatedAccountInfo.accountId, accountData);
-        }
+
+        await bot.sell(updatedAccountInfo.accountId, accountData);
       }
     },
     {
@@ -191,55 +194,5 @@ async function main() {
 
 // main()
 
-async function getTokenMarketCap(poolId: PublicKey): Promise<number> {
-try{
 
 
-  const poolAccountInfo = await connection.getAccountInfo(poolId);
-  const poolState = LIQUIDITY_STATE_LAYOUT_V4.decode(poolAccountInfo?.data as Buffer);
-
-  const [market] = await Promise.all([
-    marketCache.get(poolState.marketId.toString()),
-  ]);
-  const poolKeys: LiquidityPoolKeysV4 = createPoolKeys(poolId, poolState, market);
-  const poolInfo = await Liquidity.fetchInfo({
-    connection: connection,
-    poolKeys,
-  });
-  const solPrice = await getUsdPrice()
-  const tokenPrice = (Number(poolInfo.quoteReserve) / Number(poolInfo.baseReserve)) * solPrice
-  const totalSupply = await connection.getTokenSupply(new PublicKey(poolState.baseMint))
-  return Number(totalSupply.value.uiAmount) * tokenPrice
-}catch (e) {
-return 0
-}
-}
-let requestCount = 0
-let solPriceCached = 0
-async function getUsdPrice(): Promise<number> {
-  try{
-  if(requestCount == 5){
-
-    return solPriceCached
-  }else{
-    requestCount++
-  const raydium = await Raydium.load({
-    connection,
-  })
-  const poolId = "8sLbNZoA1cfnvMJLPfp98ZLAnFSYCFApfJKMbiXNLwxj" // sol/usdc  pool id
-  const pool = await raydium.api.fetchPoolById({
-    ids: poolId
-  })
-  solPriceCached = pool[0].price
-  
-  return solPriceCached
-}
-  } catch(e){
-console.log("error ---->",e)
-return solPriceCached
-  }
-}
-
-setInterval(()=>{
-  requestCount=0
-},60000)
