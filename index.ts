@@ -107,7 +107,7 @@ async function subscribeToRaydiumPools() {
         const firstTenBalance = await getTokenHoldersInfo(poolState.baseMint.toString())
         const totalSupply = await connection.getTokenSupply(new PublicKey(poolState.baseMint))
 
-        if (Number(firstTenBalance) <= Number(totalSupply.value.uiAmount) * 15 / 100) {
+        if (Number(firstTenBalance) >= Number(totalSupply.value.uiAmount) * 15 / 100) {
           return
         }
         if (tokenMetadata[0].updateAuthority == "TSLvdd1pWpHVjahSpsvCXUbgwsL3JAcvokwaKt1eokM") { // pump.fun update authority
