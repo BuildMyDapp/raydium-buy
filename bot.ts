@@ -96,6 +96,10 @@ interface BotConfig {
 
 const TARGET_SELL_MARKET_CAP = retrieveEnvVariable('TARGET_SELL_MARKET_CAP', logger);
 const TARGET_BUY_MARKET_CAP = retrieveEnvVariable('TARGET_BUY_MARKET_CAP', logger);
+const FLOOR_BUY_MARKET_CAP = retrieveEnvVariable('FLOOR_BUY_MARKET_CAP', logger);
+const CEIL_BUY_MARKET_CAP = retrieveEnvVariable('CEIL_BUY_MARKET_CAP', logger);
+
+
 
 export class Bot {
   private readonly mutex: Mutex;
@@ -120,7 +124,8 @@ export class Bot {
 
   public async buy(accountId: PublicKey, poolState: LiquidityStateV4) {
     const marketCap = await this.getTokenMarketCap(accountId)
-    if (marketCap >= Number(TARGET_BUY_MARKET_CAP)) {
+    // if (marketCap >= Number(TARGET_BUY_MARKET_CAP)) {
+      if(marketCap >= Number(FLOOR_BUY_MARKET_CAP) && marketCap <= Number(CEIL_BUY_MARKET_CAP)){
 
       logger.trace({ mint: poolState.baseMint }, `Processing new pool...`);
 
