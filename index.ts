@@ -197,7 +197,7 @@ async function main() {
   await subscribeToWalletChanges(wallet.publicKey);
 }
 
-// main()
+main()
 
 
 
