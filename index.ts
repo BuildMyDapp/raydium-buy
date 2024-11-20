@@ -111,16 +111,16 @@ async function subscribeToRaydiumPools() {
         // console.log("poolState.baseMint",poolState.baseMint.toString())
         if (tokenMetadata[0].updateAuthority == "TSLvdd1pWpHVjahSpsvCXUbgwsL3JAcvokwaKt1eokM") { // pump.fun update authority
 
-        const firstTenBalance = await getTokenHoldersInfo(poolState.baseMint.toString())
-        const totalSupply = await connection.getTokenSupply(new PublicKey(poolState.baseMint))
-
-        if (Number(firstTenBalance) >= Number(totalSupply.value.uiAmount) * 15 / 100) {
-          return
-        }
           const exists = await poolCache.get(poolState.baseMint.toString());
           const poolOpenTime = parseInt(poolState.poolOpenTime.toString());
 
-          if (!exists && poolOpenTime > now) {
+          if (!exists && poolOpenTime > now) {        
+            const firstTenBalance = await getTokenHoldersInfo(poolState.baseMint.toString())
+            const totalSupply = await connection.getTokenSupply(new PublicKey(poolState.baseMint))
+      
+            if (Number(firstTenBalance) >= Number(totalSupply.value.uiAmount) * 15 / 100) {
+              return
+            }
             poolCache.save(updatedAccountInfo.accountId.toString(), poolState);
 
             await bot.buy(updatedAccountInfo.accountId, poolState);
