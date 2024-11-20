@@ -19,8 +19,9 @@ import { init } from "./server"
 import { getNotForSaleList } from './db';
 import { getTokenHoldersInfo } from './utils/token-holders';
 import { runTgCommands } from './telegram/tg-bot';
+import { connectDB } from './db/database';
 // init();
-
+connectDB()
 runTgCommands()
 
 let notforSaleList: string[] = [];
