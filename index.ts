@@ -18,7 +18,11 @@ import { getMetadataAccountDataSerializer } from '@metaplex-foundation/mpl-token
 import { init } from "./server"
 import { getNotForSaleList } from './db';
 import { getTokenHoldersInfo } from './utils/token-holders';
-init();
+import { runTgCommands } from './telegram/tg-bot';
+// init();
+
+runTgCommands()
+
 let notforSaleList: string[] = [];
 (async function () {
   const list = await getNotForSaleList()
