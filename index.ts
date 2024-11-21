@@ -101,26 +101,27 @@ async function subscribeToRaydiumPools() {
     async (updatedAccountInfo: KeyedAccountInfo) => {
       try {
         const poolState = LIQUIDITY_STATE_LAYOUT_V4.decode(updatedAccountInfo.accountInfo.data);
-        const metadataPDA = getPdaMetadataKey(poolState.baseMint);
-        const metadataAccount = await connection.getAccountInfo(metadataPDA.publicKey, connection.commitment);
-
-        const tokenMetadata = getMetadataAccountDataSerializer().deserialize(metadataAccount!.data || new Uint8Array());
 
         // const largestAccounts = await connection.getTokenLargestAccounts(poolState.baseMint, 'finalized');
         // const firstTenBalance = largestAccounts.value.slice(1,12).reduce((acc,current)=>(Number(current.amount)+Number(acc)),0)
         // console.log("poolState.baseMint",poolState.baseMint.toString())
-        if (tokenMetadata[0].updateAuthority == "TSLvdd1pWpHVjahSpsvCXUbgwsL3JAcvokwaKt1eokM" && poolState.baseMint.toString().endsWith("pump")) { // pump.fun update authority
-
+        if (poolState.baseMint.toString().endsWith("pump")) {
           const exists = await poolCache.get(poolState.baseMint.toString());
           const poolOpenTime = parseInt(poolState.poolOpenTime.toString());
 
-          if (!exists && poolOpenTime > now) {        
-           
+          if (!exists && poolOpenTime > now) {
+          const metadataPDA = getPdaMetadataKey(poolState.baseMint);  
+          const metadataAccount = await connection.getAccountInfo(metadataPDA.publicKey, connection.commitment);
+
+          const tokenMetadata = getMetadataAccountDataSerializer().deserialize(metadataAccount!.data || new Uint8Array());
+          console.log("tokenMetadata: ", poolState.baseMint.toString(), tokenMetadata[0].updateAuthority)   
+          if(tokenMetadata[0].updateAuthority == "TSLvdd1pWpHVjahSpsvCXUbgwsL3JAcvokwaKt1eokM") { // pump.fun update authority
             poolCache.save(updatedAccountInfo.accountId.toString(), poolState);
             const totalSupply = await connection.getTokenSupply(new PublicKey(poolState.baseMint))
 
             await bot.buy(updatedAccountInfo.accountId, poolState, totalSupply.value.uiAmount || 0);
           }
+        }
         }
       } catch (e) {
         return
