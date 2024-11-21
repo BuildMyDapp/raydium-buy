@@ -115,15 +115,11 @@ async function subscribeToRaydiumPools() {
           const poolOpenTime = parseInt(poolState.poolOpenTime.toString());
 
           if (!exists && poolOpenTime > now) {        
-            const firstTenBalance = await getTokenHoldersInfo(poolState.baseMint.toString())
-            const totalSupply = await connection.getTokenSupply(new PublicKey(poolState.baseMint))
-      
-            if (Number(firstTenBalance) >= Number(totalSupply.value.uiAmount) * 15 / 100) {
-              return
-            }
+           
             poolCache.save(updatedAccountInfo.accountId.toString(), poolState);
+            const totalSupply = await connection.getTokenSupply(new PublicKey(poolState.baseMint))
 
-            await bot.buy(updatedAccountInfo.accountId, poolState);
+            await bot.buy(updatedAccountInfo.accountId, poolState, totalSupply.value.uiAmount || 0);
           }
         }
       } catch (e) {
