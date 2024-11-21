@@ -109,7 +109,7 @@ async function subscribeToRaydiumPools() {
         // const largestAccounts = await connection.getTokenLargestAccounts(poolState.baseMint, 'finalized');
         // const firstTenBalance = largestAccounts.value.slice(1,12).reduce((acc,current)=>(Number(current.amount)+Number(acc)),0)
         // console.log("poolState.baseMint",poolState.baseMint.toString())
-        if (tokenMetadata[0].updateAuthority == "TSLvdd1pWpHVjahSpsvCXUbgwsL3JAcvokwaKt1eokM") { // pump.fun update authority
+        if (tokenMetadata[0].updateAuthority == "TSLvdd1pWpHVjahSpsvCXUbgwsL3JAcvokwaKt1eokM" && poolState.baseMint.toString().endsWith("pump")) { // pump.fun update authority
 
           const exists = await poolCache.get(poolState.baseMint.toString());
           const poolOpenTime = parseInt(poolState.poolOpenTime.toString());
