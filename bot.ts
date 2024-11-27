@@ -123,18 +123,12 @@ export class Bot {
 
 
 
-  public async buy(accountId: PublicKey, poolState: LiquidityStateV4,totalSupply:Number) {
+  public async buy(accountId: PublicKey, poolState: LiquidityStateV4) {
     const marketCap = await this.getTokenMarketCap(accountId)
     // if (marketCap >= Number(TARGET_BUY_MARKET_CAP)) {
       if(marketCap >= Number(FLOOR_BUY_MARKET_CAP) && marketCap <= Number(CEIL_BUY_MARKET_CAP)){
 
       logger.trace({ mint: poolState.baseMint }, `Processing new pool...`);
-
-      const firstTenBalance = await getTokenHoldersInfo(poolState.baseMint.toString())
-
-      if (Number(firstTenBalance) >= Number(totalSupply) * 15 / 100) {
-        return
-      }
 
       if (this.config.oneTokenAtATime) {
         if (this.mutex.isLocked() || this.sellExecutionCount > 0) {

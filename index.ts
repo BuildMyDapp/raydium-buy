@@ -11,6 +11,8 @@ import { MarketCache } from "./marketcache"
 import { PoolCache } from './poolcache';
 import "./helper"
 import { getMetadataAccountDataSerializer } from '@metaplex-foundation/mpl-token-metadata';
+import { startTokenListener } from './listener';
+import { isTokenEligible } from './utils/topHolders'; // Import eligibility check
 
 // import { createPoolKeys } from './helper';
 // import { BN } from 'bn.js';
@@ -22,7 +24,7 @@ import { runTgCommands } from './telegram/tg-bot';
 import { connectDB } from './db/database';
 // init();
 connectDB()
-runTgCommands()
+// runTgCommands()
 
 let notforSaleList: string[] = [];
 (async function () {
@@ -93,42 +95,34 @@ const subscriptionConfig: ProgramAccountSubscriptionConfig = {
     },
   ],
 }
-const now = Math.floor(new Date().getTime() / 1000);
 
-async function subscribeToRaydiumPools() {
-  return connection.onProgramAccountChange(
-    MAINNET_PROGRAM_ID.AmmV4,
-    async (updatedAccountInfo: KeyedAccountInfo) => {
-      try {
-        const poolState = LIQUIDITY_STATE_LAYOUT_V4.decode(updatedAccountInfo.accountInfo.data);
+// Function to handle detected tokens
+async function handleNewToken(tokenMintAddress: string) {
+  try {
+    console.log(`Detected new token migrated to Raydium: ${tokenMintAddress}`);
 
-        // const largestAccounts = await connection.getTokenLargestAccounts(poolState.baseMint, 'finalized');
-        // const firstTenBalance = largestAccounts.value.slice(1,12).reduce((acc,current)=>(Number(current.amount)+Number(acc)),0)
-        // console.log("poolState.baseMint",poolState.baseMint.toString())
-        if (poolState.baseMint.toString().endsWith("pump")) {
-          const exists = await poolCache.get(poolState.baseMint.toString());
-          const poolOpenTime = parseInt(poolState.poolOpenTime.toString());
+    const metadataPDA = getPdaMetadataKey(new PublicKey(tokenMintAddress));
+    const metadataAccount = await connection.getAccountInfo(metadataPDA.publicKey);
 
-          if (!exists && poolOpenTime > now) {
-          const metadataPDA = getPdaMetadataKey(poolState.baseMint);  
-          const metadataAccount = await connection.getAccountInfo(metadataPDA.publicKey, connection.commitment);
+    if (!metadataAccount) {
+      console.warn(`Metadata not found for token: ${tokenMintAddress}`);
+      return;
+    }
 
-          const tokenMetadata = getMetadataAccountDataSerializer().deserialize(metadataAccount!.data || new Uint8Array());
-          console.log("tokenMetadata: ", poolState.baseMint.toString(), tokenMetadata[0].updateAuthority)   
-          if(tokenMetadata[0].updateAuthority == "TSLvdd1pWpHVjahSpsvCXUbgwsL3JAcvokwaKt1eokM") { // pump.fun update authority
-            poolCache.save(updatedAccountInfo.accountId.toString(), poolState);
-            const totalSupply = await connection.getTokenSupply(new PublicKey(poolState.baseMint))
+    // Check if token is eligible based on top holders' percentage
+    const isEligible = await isTokenEligible(connection, tokenMintAddress);
+    if (!isEligible) {
+      console.log(`Top holders hold more than 15% of the total supply. Skipping token: ${tokenMintAddress}`);
+      return;
+    }
 
-            await bot.buy(updatedAccountInfo.accountId, poolState, totalSupply.value.uiAmount || 0);
-          }
-        }
-        }
-      } catch (e) {
-        return
-      }
-    },
-    subscriptionConfig
-  );
+    console.log(`Buying token: ${tokenMintAddress}`);
+    // Uncomment the following line to enable actual buying
+    // await bot.buy(new PublicKey(tokenMintAddress), null);
+    console.log(`Successfully bought token: ${tokenMintAddress}`);
+  } catch (error) {
+    console.error(`Error handling token ${tokenMintAddress}:`, error);
+  }
 }
 
 async function subscribeToOpenBookMarkets() {
@@ -190,7 +184,8 @@ async function subscribeToWalletChanges(walletPublicKey: PublicKey) {
 }
 
 async function main() {
-  await subscribeToRaydiumPools();
+  console.log('Starting token listener...');
+  startTokenListener(handleNewToken); // Use listener logic to detect new tokens
   await subscribeToOpenBookMarkets();
   await subscribeToWalletChanges(wallet.publicKey);
 }
