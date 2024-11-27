@@ -1,20 +1,18 @@
-import { Connection, PublicKey, VersionedTransactionResponse } from '@solana/web3.js';
+import {  PublicKey, VersionedTransactionResponse } from '@solana/web3.js';
 import * as dotenv from 'dotenv';
+import { connection } from './connection';
 
 dotenv.config();
 
-const CONNECTION_URL = process.env.CONNECTION_URL as string;
 const PUMP_FUN_MIGRATION_ACCOUNT = process.env.PUMP_FUN_MIGRATION_ACCOUNT as string;
 
-if (!CONNECTION_URL || !PUMP_FUN_MIGRATION_ACCOUNT) {
-  throw new Error('Environment variables CONNECTION_URL or PUMP_FUN_MIGRATION_ACCOUNT are not set.');
+if ( !PUMP_FUN_MIGRATION_ACCOUNT) {
+  throw new Error('Environment variables PUMP_FUN_MIGRATION_ACCOUNT are not set.');
 }
 
-const connection = new Connection(CONNECTION_URL, {
-  commitment: 'confirmed'
-});
 
-export function startTokenListener(onNewToken: (tokenMintAddress: string) => void) {
+
+export function startTokenListener(onNewToken: (tokenMintAddress: string,poolId:string) => void) {
   connection.onLogs(
     new PublicKey(PUMP_FUN_MIGRATION_ACCOUNT),
     async (log) => {
@@ -24,17 +22,18 @@ export function startTokenListener(onNewToken: (tokenMintAddress: string) => voi
         return;
       }
 
-      const mintAddress = await getMintAddressFromAccountIndex6(signature);
-      if (mintAddress) {
-        console.log(`New token detected: ${mintAddress}`);
-        onNewToken(mintAddress);
+      const mintAndPool = await getMintAddressFromAccountIndex6(signature);
+      if (mintAndPool?.tokenMint && mintAndPool?.poolId) {
+        onNewToken(mintAndPool?.tokenMint,mintAndPool.poolId);
       }
     },
     'processed'
   );
 }
 
-async function getMintAddressFromAccountIndex6(signature: string): Promise<string | null> {
+
+
+async function getMintAddressFromAccountIndex6(signature: string): Promise<{tokenMint:string|null,poolId:string} | null> {
   try {
     const transactionDetails: VersionedTransactionResponse | null = await connection.getTransaction(signature, {
       maxSupportedTransactionVersion: 0,
@@ -45,11 +44,11 @@ async function getMintAddressFromAccountIndex6(signature: string): Promise<strin
       return null;
     }
 
+    const poolId = transactionDetails.transaction.message.staticAccountKeys[2];
     const postTokenBalances = transactionDetails.meta?.postTokenBalances;
     if (!postTokenBalances) return null;
-
     const accountBalance = postTokenBalances.find((balance) => balance.accountIndex === 6);
-    return accountBalance?.mint || null;
+    return {tokenMint:accountBalance?.mint || null,poolId:poolId.toString()};
   } catch (error) {
     console.error('Error fetching transaction details:', error);
     return null;

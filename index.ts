@@ -4,13 +4,12 @@ import { connection } from "./connection"
 import { JitoTransactionExecutor } from './jeto';
 import { logger } from './logger';
 import { retrieveEnvVariable } from './env';
-import { KeyedAccountInfo, Keypair, ProgramAccountSubscriptionConfig, PublicKey } from '@solana/web3.js';
+import { KeyedAccountInfo, Keypair, PublicKey } from '@solana/web3.js';
 import { AccountLayout, getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { Bot } from './bot';
 import { MarketCache } from "./marketcache"
 import { PoolCache } from './poolcache';
 import "./helper"
-import { getMetadataAccountDataSerializer } from '@metaplex-foundation/mpl-token-metadata';
 import { startTokenListener } from './listener';
 import { isTokenEligible } from './utils/topHolders'; // Import eligibility check
 
@@ -71,33 +70,8 @@ const poolCache = new PoolCache();
 
 const bot = new Bot(connection, txExecutor, botConfig, marketCache, poolCache);
 
-const subscriptionConfig: ProgramAccountSubscriptionConfig = {
-  commitment: connection.commitment,
-  filters: [
-    { dataSize: LIQUIDITY_STATE_LAYOUT_V4.span },
-    {
-      memcmp: {
-        offset: LIQUIDITY_STATE_LAYOUT_V4.offsetOf('quoteMint'),
-        bytes: quoteToken.mint.toBase58(),
-      },
-    },
-    {
-      memcmp: {
-        offset: LIQUIDITY_STATE_LAYOUT_V4.offsetOf('marketProgramId'),
-        bytes: MAINNET_PROGRAM_ID.OPENBOOK_MARKET.toBase58(),
-      },
-    },
-    {
-      memcmp: {
-        offset: LIQUIDITY_STATE_LAYOUT_V4.offsetOf('status'),
-        bytes: bs58.encode([6, 0, 0, 0, 0, 0, 0, 0]),
-      },
-    },
-  ],
-}
-
 // Function to handle detected tokens
-async function handleNewToken(tokenMintAddress: string) {
+async function handleNewToken(tokenMintAddress: string,poolId:string) {
   try {
     console.log(`Detected new token migrated to Raydium: ${tokenMintAddress}`);
 
@@ -117,8 +91,20 @@ async function handleNewToken(tokenMintAddress: string) {
     }
 
     console.log(`Buying token: ${tokenMintAddress}`);
+
+      // Fetch the pool account information
+      const poolAccountInfo = await connection.getAccountInfo(new PublicKey(poolId));
+      if (!poolAccountInfo) {
+        console.log(`Pool with ID ${poolId} not found`);
+        return
+      }
+  
+      // Decode the pool state using Raydium's LIQUIDITY_STATE_LAYOUT_V4
+      const poolState = LIQUIDITY_STATE_LAYOUT_V4.decode(poolAccountInfo.data);
+  
+
     // Uncomment the following line to enable actual buying
-    // await bot.buy(new PublicKey(tokenMintAddress), null);
+    await bot.buy(new PublicKey(tokenMintAddress), poolState);
     console.log(`Successfully bought token: ${tokenMintAddress}`);
   } catch (error) {
     console.error(`Error handling token ${tokenMintAddress}:`, error);

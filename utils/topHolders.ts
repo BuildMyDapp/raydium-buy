@@ -40,7 +40,7 @@ export async function isTokenEligible(connection: Connection, tokenMintAddress: 
 
     adjustedTopHolders.forEach((holder, index) => {
       const holderAddress = holder.address.toBase58(); // Convert PublicKey to Base58 format
-      const holderAmount = parseFloat(holder.uiAmountString); // Convert amount to a readable float
+      const holderAmount = parseFloat(holder.uiAmountString as string); // Convert amount to a readable float
 
       console.log(`Top Holder ${index + 1}:`);
       console.log(`  Address: ${holderAddress}`);
