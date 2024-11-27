@@ -126,14 +126,14 @@ export class Bot {
   public async buy(accountId: PublicKey, poolState: LiquidityStateV4) {
     const marketCap = await this.getTokenMarketCap(accountId)
     // if (marketCap >= Number(TARGET_BUY_MARKET_CAP)) {
-      if(marketCap >= Number(FLOOR_BUY_MARKET_CAP) && marketCap <= Number(CEIL_BUY_MARKET_CAP)){
+      // if(marketCap >= Number(FLOOR_BUY_MARKET_CAP) && marketCap <= Number(CEIL_BUY_MARKET_CAP)){
 
-      logger.trace({ mint: poolState.baseMint }, `Processing new pool...`);
+      logger.trace({ mint: poolState.quoteMint }, `Processing new pool...`);
 
       if (this.config.oneTokenAtATime) {
         if (this.mutex.isLocked() || this.sellExecutionCount > 0) {
           logger.debug(
-            { mint: poolState.baseMint.toString() },
+            { mint: poolState.quoteMint.toString() },
             `Skipping buy because one token at a time is turned on and token is already being processed`,
           );
           return;
@@ -145,7 +145,7 @@ export class Bot {
       try {
         const [market, mintAta] = await Promise.all([
           this.marketStorage.get(poolState.marketId.toString()),
-          getAssociatedTokenAddress(poolState.baseMint, this.config.wallet.publicKey),
+          getAssociatedTokenAddress(poolState.quoteMint, this.config.wallet.publicKey),
         ]);
         const poolKeys: LiquidityPoolKeysV4 = createPoolKeys(accountId, poolState, market);
 
@@ -153,10 +153,10 @@ export class Bot {
         for (let i = 0; i < this.config.maxBuyRetries; i++) {
           try {
             logger.info(
-              { mint: poolState.baseMint.toString() },
+              { mint: poolState.quoteMint.toString() },
               `Send buy transaction attempt: ${i + 1}/${this.config.maxBuyRetries}`,
             );
-            const tokenOut = new Token(TOKEN_PROGRAM_ID, poolKeys.baseMint, poolKeys.baseDecimals);
+            const tokenOut = new Token(TOKEN_PROGRAM_ID, poolKeys.quoteMint, poolKeys.quoteDecimals);
             const result = await this.swap(
               poolKeys,
               this.config.quoteAta,
@@ -170,11 +170,11 @@ export class Bot {
             );
 
             if (result.confirmed) {
-              await saveBuyTx(poolState.baseMint.toString(), accountId.toString(), result.signature?.toString(), Number(this.config.quoteAmount.numerator));
+              await saveBuyTx(poolState.quoteMint.toString(), accountId.toString(), result.signature?.toString(), Number(this.config.quoteAmount.numerator));
 
               logger.info(
                 {
-                  mint: poolState.baseMint.toString(),
+                  mint: poolState.quoteMint.toString(),
                   signature: result.signature,
                   url: `https://solscan.io/tx/${result.signature}?cluster=${NETWORK}`,
                 },
@@ -186,24 +186,24 @@ export class Bot {
 
             logger.info(
               {
-                mint: poolState.baseMint.toString(),
+                mint: poolState.quoteMint.toString(),
                 signature: result.signature,
                 error: result.error,
               },
               `Error confirming buy tx`,
             );
           } catch (error) {
-            logger.debug({ mint: poolState.baseMint.toString(), error }, `Error confirming buy transaction`);
+            logger.debug({ mint: poolState.quoteMint.toString(), error }, `Error confirming buy transaction`);
           }
         }
       } catch (error) {
-        logger.error({ mint: poolState.baseMint.toString(), error }, `Failed to buy token`);
+        logger.error({ mint: poolState.quoteMint.toString(), error }, `Failed to buy token`);
       } finally {
         if (this.config.oneTokenAtATime) {
           this.mutex.release();
         }
       }
-    }
+    // }
   }
 
   public async sell(accountId: PublicKey, rawAccount: RawAccount) {

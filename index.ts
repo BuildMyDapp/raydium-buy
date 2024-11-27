@@ -26,10 +26,10 @@ connectDB()
 // runTgCommands()
 
 let notforSaleList: string[] = [];
-(async function () {
-  const list = await getNotForSaleList()
-  notforSaleList = list!.map(row => row.mint_address);
-})()
+// (async function () {
+//   const list = await getNotForSaleList()
+//   notforSaleList = list!.map(row => row.mint_address);
+// })()
 function getWallet(pk: string): Keypair {
   // assuming  private key to be base58 encoded
   return Keypair.fromSecretKey(bs58.decode(pk));
@@ -73,7 +73,8 @@ const bot = new Bot(connection, txExecutor, botConfig, marketCache, poolCache);
 // Function to handle detected tokens
 async function handleNewToken(tokenMintAddress: string,poolId:string) {
   try {
-    console.log(`Detected new token migrated to Raydium: ${tokenMintAddress}`);
+    // console.log(`Detected new token migrated to Raydium: ${tokenMintAddress}`);
+    console.log(`New token mint and pool ID found: ${tokenMintAddress}, ${poolId}`);
 
     const metadataPDA = getPdaMetadataKey(new PublicKey(tokenMintAddress));
     const metadataAccount = await connection.getAccountInfo(metadataPDA.publicKey);
@@ -85,10 +86,10 @@ async function handleNewToken(tokenMintAddress: string,poolId:string) {
 
     // Check if token is eligible based on top holders' percentage
     const isEligible = await isTokenEligible(connection, tokenMintAddress);
-    if (!isEligible) {
-      console.log(`Top holders hold more than 15% of the total supply. Skipping token: ${tokenMintAddress}`);
-      return;
-    }
+    // if (!isEligible) {
+    //   console.log(`Top holders hold more than 15% of the total supply. Skipping token: ${tokenMintAddress}`);
+    //   return;
+    // }
 
     console.log(`Buying token: ${tokenMintAddress}`);
 
@@ -105,7 +106,6 @@ async function handleNewToken(tokenMintAddress: string,poolId:string) {
 
     // Uncomment the following line to enable actual buying
     await bot.buy(new PublicKey(tokenMintAddress), poolState);
-    console.log(`Successfully bought token: ${tokenMintAddress}`);
   } catch (error) {
     console.error(`Error handling token ${tokenMintAddress}:`, error);
   }

@@ -24,6 +24,7 @@ export function startTokenListener(onNewToken: (tokenMintAddress: string,poolId:
 
       const mintAndPool = await getMintAddressFromAccountIndex6(signature);
       if (mintAndPool?.tokenMint && mintAndPool?.poolId) {
+        // console.log(`New token mint and pool ID found: ${mintAndPool?.tokenMint}, ${mintAndPool.poolId}`);
         onNewToken(mintAndPool?.tokenMint,mintAndPool.poolId);
       }
     },
