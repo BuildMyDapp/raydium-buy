@@ -198,17 +198,17 @@ export class Bot {
 
 
 public async sell(accountId: PublicKey, rawAccount: RawAccount) {
-  if (this.config.oneTokenAtATime) {
-    this.sellExecutionCount++;
-  }
+  // if (this.config.oneTokenAtATime) {
+  //   this.sellExecutionCount++;
+  // }
 
   try {
-    logger.trace({ mint: rawAccount.mint }, `Processing new token...`);
+    console.log({ mint: rawAccount.mint }, `Processing new token...`);
 
     const poolData = await this.poolStorage.get(rawAccount.mint.toString());
-
+    
     if (!poolData) {
-      logger.trace({ mint: rawAccount.mint.toString() }, `Token pool data is not found, can't sell`);
+      console.log({ mint: rawAccount.mint.toString() }, `Token pool data is not found, can't sell`);
       return;
     }
 
@@ -216,7 +216,7 @@ public async sell(accountId: PublicKey, rawAccount: RawAccount) {
     const tokenAmountIn = new TokenAmount(tokenIn, rawAccount.amount, true);
 
     if (tokenAmountIn.isZero()) {
-      logger.info({ mint: rawAccount.mint.toString() }, `Empty balance, can't sell`);
+      console.log({ mint: rawAccount.mint.toString() }, `Empty balance, can't sell`);
       return;
     }
 
@@ -225,21 +225,21 @@ public async sell(accountId: PublicKey, rawAccount: RawAccount) {
     const market = await this.marketStorage.get(poolData.state.marketId.toString());
     const poolKeys: LiquidityPoolKeysV4 = createPoolKeys(new PublicKey(poolData.id), poolData.state, market);
 
-    await this.marketCapMatch(poolKeys.baseMint, accountId);
+    // await this.marketCapMatch(poolKeys.baseMint, accountId);
 
     for (let i = 0; i < this.config.maxSellRetries; i++) {
       try {
-        logger.info(
+        console.log(
           { mint: rawAccount.mint },
           `Send sell transaction attempt: ${i + 1}/${this.config.maxSellRetries}`,
         );
 
         const result = await this.swap(
           poolKeys,
-          accountId,
-          this.config.quoteAta,
-          tokenIn,
-          this.config.quoteToken,
+          accountId, // ata
+          this.config.quoteAta, // ata
+          tokenIn, // token 
+          this.config.quoteToken, // token
           tokenAmountIn,
           this.config.sellSlippage,
           this.config.wallet,
@@ -261,7 +261,7 @@ public async sell(accountId: PublicKey, rawAccount: RawAccount) {
           break;
         }
 
-        logger.info(
+        console.log(
           {
             mint: rawAccount.mint.toString(),
             signature: result.signature,
@@ -270,11 +270,11 @@ public async sell(accountId: PublicKey, rawAccount: RawAccount) {
           `Error confirming sell tx`,
         );
       } catch (error) {
-        logger.debug({ mint: rawAccount.mint.toString(), error }, `Error confirming sell transaction`);
+        console.log({ mint: rawAccount.mint.toString(), error }, `Error confirming sell transaction`);
       }
     }
   } catch (error) {
-    logger.error({ mint: rawAccount.mint.toString(), error }, `Failed to sell token`);
+    console.log({ mint: rawAccount.mint.toString(), error }, `Failed to sell token`);
   } finally {
     if (this.config.oneTokenAtATime) {
       this.sellExecutionCount--;

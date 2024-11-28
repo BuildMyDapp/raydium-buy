@@ -106,7 +106,8 @@ async function handleNewToken(poolId: PublicKey,tokenMintAddress:string) {
         token_address: poolState.baseMint.toString(),
         pool_address: poolId,
       });
-
+      // save pool info for later to retrieve for sell order
+      poolCache.save(poolId.toString(), poolState);
       // Perform the buy transaction for each wallet
       await bot.buy(poolId, poolState);
 
@@ -150,14 +151,13 @@ async function subscribeToWalletChanges(walletPublicKey: PublicKey) {
       if (accountData.mint.equals(quoteToken.mint)) {
         return;
       }
-      if (!notforSaleList?.includes(accountData.mint.toString())) {
+      // if (!notforSaleList?.includes(accountData.mint.toString())) {
         console.log({
           "token_address": accountData.mint.toString(),
-          "pool_address": updatedAccountInfo.accountId.toString()
         })
 
         await bot.sell(updatedAccountInfo.accountId, accountData);
-      }
+      // }
     },
     {
       commitment: connection.commitment,
@@ -178,7 +178,7 @@ async function subscribeToWalletChanges(walletPublicKey: PublicKey) {
 
 async function main() {
   console.log('Starting token listener...');
-  startTokenListener(handleNewToken); // Use listener logic to detect new tokens
+  // startTokenListener(handleNewToken); // Use listener logic to detect new tokens
   await subscribeToOpenBookMarkets();
   await subscribeToWalletChanges(wallet.publicKey);
 }
