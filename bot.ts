@@ -7,29 +7,25 @@ import {
 } from '@solana/web3.js';
 import {
   createAssociatedTokenAccountIdempotentInstruction,
-  createCloseAccountInstruction,
   getAssociatedTokenAddress,
   RawAccount,
   TOKEN_PROGRAM_ID,
 } from '@solana/spl-token';
-import {
-  GetStructureSchema,
+import { GetStructureSchema,
   publicKey, struct, Liquidity,
   LiquidityPoolKeys, LiquidityPoolKeysV4,
   LiquidityStateV4, MAINNET_PROGRAM_ID,
-  Market, Percent, Token, TokenAmount,
+  Market, Percent, Token, TokenAmount, 
   LIQUIDITY_STATE_LAYOUT_V4
 } from '@raydium-io/raydium-sdk';
-import { Mutex } from 'async-mutex';
 import { JitoTransactionExecutor } from './jeto';
 import { logger } from './logger';
 import { retrieveEnvVariable } from './env';
 import { MarketCache } from './marketcache';
 import { PoolCache } from './poolcache';
-import BN from 'bn.js';
-import { saveBuyTx, saveSellTx } from './db';
+import { Mutex } from 'async-mutex';
 import { Raydium } from '@raydium-io/raydium-sdk-v2';
-import { getTokenHoldersInfo } from './utils/token-holders';
+import { saveBuyTx, saveSellTx } from './db';
 
 
 const NETWORK = retrieveEnvVariable('NETWORK', logger);
@@ -37,8 +33,8 @@ const MINIMAL_MARKET_STATE_LAYOUT_V3 = struct([publicKey('eventQueue'), publicKe
 type MinimalMarketStateLayoutV3 = typeof MINIMAL_MARKET_STATE_LAYOUT_V3;
 type MinimalMarketLayoutV3 = GetStructureSchema<MinimalMarketStateLayoutV3>;
 
-
 const sleep = (ms = 0) => new Promise((resolve) => setTimeout(resolve, ms));
+
 
 
 function createPoolKeys(
@@ -101,195 +97,221 @@ const FLOOR_BUY_MARKET_CAP = retrieveEnvVariable('FLOOR_BUY_MARKET_CAP', logger)
 const CEIL_BUY_MARKET_CAP = retrieveEnvVariable('CEIL_BUY_MARKET_CAP', logger);
 
 
-
 export class Bot {
   private readonly mutex: Mutex;
   private sellExecutionCount = 0;
   private requestCount = 0
   private solPriceCached = 0
+
   constructor(
     private readonly connection: Connection,
+    
     private readonly txExecutor: JitoTransactionExecutor,
     readonly config: BotConfig,
     private readonly marketStorage: MarketCache,
     private readonly poolStorage: PoolCache,
-  ) {
 
+
+  ) {
     this.mutex = new Mutex();
     setInterval(() => {
       this.requestCount = 0
     }, 60000)
   }
 
-
-
   public async buy(accountId: PublicKey, poolState: LiquidityStateV4) {
-    const marketCap = await this.getTokenMarketCap(accountId)
-    // if (marketCap >= Number(TARGET_BUY_MARKET_CAP)) {
-      // if(marketCap >= Number(FLOOR_BUY_MARKET_CAP) && marketCap <= Number(CEIL_BUY_MARKET_CAP)){
-
-      logger.trace({ mint: poolState.quoteMint }, `Processing new pool...`);
-
-      if (this.config.oneTokenAtATime) {
-        if (this.mutex.isLocked() || this.sellExecutionCount > 0) {
-          logger.debug(
-            { mint: poolState.quoteMint.toString() },
-            `Skipping buy because one token at a time is turned on and token is already being processed`,
-          );
-          return;
-        }
-
-        await this.mutex.acquire();
-      }
-
-      try {
-        const [market, mintAta] = await Promise.all([
-          this.marketStorage.get(poolState.marketId.toString()),
-          getAssociatedTokenAddress(poolState.quoteMint, this.config.wallet.publicKey),
-        ]);
-        const poolKeys: LiquidityPoolKeysV4 = createPoolKeys(accountId, poolState, market);
-
-
-        for (let i = 0; i < this.config.maxBuyRetries; i++) {
-          try {
-            logger.info(
-              { mint: poolState.quoteMint.toString() },
-              `Send buy transaction attempt: ${i + 1}/${this.config.maxBuyRetries}`,
-            );
-            const tokenOut = new Token(TOKEN_PROGRAM_ID, poolKeys.quoteMint, poolKeys.quoteDecimals);
-            const result = await this.swap(
-              poolKeys,
-              this.config.quoteAta,
-              mintAta,
-              this.config.quoteToken,
-              tokenOut,
-              this.config.quoteAmount,
-              this.config.buySlippage,
-              this.config.wallet,
-              'buy',
-            );
-
-            if (result.confirmed) {
-              await saveBuyTx(poolState.quoteMint.toString(), accountId.toString(), result.signature?.toString(), Number(this.config.quoteAmount.numerator));
-
-              logger.info(
-                {
-                  mint: poolState.quoteMint.toString(),
-                  signature: result.signature,
-                  url: `https://solscan.io/tx/${result.signature}?cluster=${NETWORK}`,
-                },
-                `Confirmed buy tx`,
-              );
-
-              break;
-            }
-
-            logger.info(
-              {
-                mint: poolState.quoteMint.toString(),
-                signature: result.signature,
-                error: result.error,
-              },
-              `Error confirming buy tx`,
-            );
-          } catch (error) {
-            logger.debug({ mint: poolState.quoteMint.toString(), error }, `Error confirming buy transaction`);
-          }
-        }
-      } catch (error) {
-        logger.error({ mint: poolState.quoteMint.toString(), error }, `Failed to buy token`);
-      } finally {
+    
+      const marketCap = await this.getTokenMarketCap(accountId)
+      if(marketCap >= Number(FLOOR_BUY_MARKET_CAP) && marketCap <= Number(CEIL_BUY_MARKET_CAP)){
         if (this.config.oneTokenAtATime) {
-          this.mutex.release();
+          if (this.mutex.isLocked() || this.sellExecutionCount > 0) {
+            logger.debug(
+              { mint: poolState.baseMint.toString() },
+              `Skipping buy because one token at a time is turned on and token is already being processed`,
+            );
+            return;
+          }
+  
+          await this.mutex.acquire();
         }
-      }
-    // }
-  }
-
-  public async sell(accountId: PublicKey, rawAccount: RawAccount) {
-    if (this.config.oneTokenAtATime) {
-      this.sellExecutionCount++;
-    }
-
-    try {
-      logger.trace({ mint: rawAccount.mint }, `Processing new token...`);
-
-      const poolData = await this.poolStorage.get(rawAccount.mint.toString());
-
-      if (!poolData) {
-        logger.trace({ mint: rawAccount.mint.toString() }, `Token pool data is not found, can't sell`);
-        return;
-      }
-
-      const tokenIn = new Token(TOKEN_PROGRAM_ID, poolData.state.baseMint, poolData.state.baseDecimal.toNumber());
-      const tokenAmountIn = new TokenAmount(tokenIn, rawAccount.amount, true);
-
-      if (tokenAmountIn.isZero()) {
-        logger.info({ mint: rawAccount.mint.toString() }, `Empty balance, can't sell`);
-        return;
-      }
-
-
-
-      const market = await this.marketStorage.get(poolData.state.marketId.toString());
-      const poolKeys: LiquidityPoolKeysV4 = createPoolKeys(new PublicKey(poolData.id), poolData.state, market);
-
-      await this.marketCapMatch(poolKeys.baseMint, accountId);
-
-      for (let i = 0; i < this.config.maxSellRetries; i++) {
         try {
-          logger.info(
-            { mint: rawAccount.mint },
-            `Send sell transaction attempt: ${i + 1}/${this.config.maxSellRetries}`,
-          );
+      const [market, mintAta] = await Promise.all([
+        this.marketStorage.get(poolState.marketId.toString()),
+        getAssociatedTokenAddress(poolState.baseMint, this.config.wallet.publicKey),
+      ]);
+      const poolKeys: LiquidityPoolKeysV4 = createPoolKeys(accountId, poolState, market);
+      for (let i = 0; i < this.config.maxBuyRetries; i++) {
+        try {
+              logger.info(
+                { mint: poolState.baseMint.toString() },
+                `Send buy transaction attempt: ${i + 1}/${this.config.maxBuyRetries}`,
+              );
+          const tokenOut = new Token(TOKEN_PROGRAM_ID, poolKeys.baseMint, poolKeys.baseDecimals);
 
           const result = await this.swap(
             poolKeys,
-            accountId,
             this.config.quoteAta,
-            tokenIn,
+            mintAta,
             this.config.quoteToken,
-            tokenAmountIn,
-            this.config.sellSlippage,
+            tokenOut,
+            this.config.quoteAmount,
+            this.config.buySlippage,
             this.config.wallet,
-            'sell',
+            'buy'
           );
 
           if (result.confirmed) {
-            await saveSellTx(rawAccount.mint.toString(), accountId.toString(), result.signature?.toString(), Number(tokenAmountIn.numerator));
+            await saveBuyTx(poolState.baseMint.toString(), accountId.toString(), result.signature?.toString(), Number(this.config.quoteAmount.numerator));
 
             logger.info(
               {
-                dex: `https://dexscreener.com/solana/${rawAccount.mint.toString()}?maker=${this.config.wallet.publicKey}`,
-                mint: rawAccount.mint.toString(),
+                mint: poolState.baseMint.toString(),
                 signature: result.signature,
                 url: `https://solscan.io/tx/${result.signature}?cluster=${NETWORK}`,
               },
-              `Confirmed sell tx`,
+              `Confirmed buy tx`,
             );
+
             break;
           }
-
           logger.info(
             {
-              mint: rawAccount.mint.toString(),
+              mint: poolState.baseMint.toString(),
               signature: result.signature,
               error: result.error,
             },
-            `Error confirming sell tx`,
+            `Error confirming buy tx`,
           );
         } catch (error) {
-          logger.debug({ mint: rawAccount.mint.toString(), error }, `Error confirming sell transaction`);
+          logger.debug({ mint: poolState.baseMint.toString(), error }, `Error confirming buy transaction`);
         }
       }
     } catch (error) {
-      logger.error({ mint: rawAccount.mint.toString(), error }, `Failed to sell token`);
+      logger.error({ mint: poolState.baseMint.toString(), error }, `Failed to buy token`);
     } finally {
       if (this.config.oneTokenAtATime) {
-        this.sellExecutionCount--;
+        this.mutex.release();
       }
     }
   }
+}
+
+
+public async sell(accountId: PublicKey, rawAccount: RawAccount) {
+  if (this.config.oneTokenAtATime) {
+    this.sellExecutionCount++;
+  }
+
+  try {
+    logger.trace({ mint: rawAccount.mint }, `Processing new token...`);
+
+    const poolData = await this.poolStorage.get(rawAccount.mint.toString());
+
+    if (!poolData) {
+      logger.trace({ mint: rawAccount.mint.toString() }, `Token pool data is not found, can't sell`);
+      return;
+    }
+
+    const tokenIn = new Token(TOKEN_PROGRAM_ID, poolData.state.baseMint, poolData.state.baseDecimal.toNumber());
+    const tokenAmountIn = new TokenAmount(tokenIn, rawAccount.amount, true);
+
+    if (tokenAmountIn.isZero()) {
+      logger.info({ mint: rawAccount.mint.toString() }, `Empty balance, can't sell`);
+      return;
+    }
+
+
+
+    const market = await this.marketStorage.get(poolData.state.marketId.toString());
+    const poolKeys: LiquidityPoolKeysV4 = createPoolKeys(new PublicKey(poolData.id), poolData.state, market);
+
+    await this.marketCapMatch(poolKeys.baseMint, accountId);
+
+    for (let i = 0; i < this.config.maxSellRetries; i++) {
+      try {
+        logger.info(
+          { mint: rawAccount.mint },
+          `Send sell transaction attempt: ${i + 1}/${this.config.maxSellRetries}`,
+        );
+
+        const result = await this.swap(
+          poolKeys,
+          accountId,
+          this.config.quoteAta,
+          tokenIn,
+          this.config.quoteToken,
+          tokenAmountIn,
+          this.config.sellSlippage,
+          this.config.wallet,
+          'sell',
+        );
+
+        if (result.confirmed) {
+          await saveSellTx(rawAccount.mint.toString(), accountId.toString(), result.signature?.toString(), Number(tokenAmountIn.numerator));
+
+          logger.info(
+            {
+              dex: `https://dexscreener.com/solana/${rawAccount.mint.toString()}?maker=${this.config.wallet.publicKey}`,
+              mint: rawAccount.mint.toString(),
+              signature: result.signature,
+              url: `https://solscan.io/tx/${result.signature}?cluster=${NETWORK}`,
+            },
+            `Confirmed sell tx`,
+          );
+          break;
+        }
+
+        logger.info(
+          {
+            mint: rawAccount.mint.toString(),
+            signature: result.signature,
+            error: result.error,
+          },
+          `Error confirming sell tx`,
+        );
+      } catch (error) {
+        logger.debug({ mint: rawAccount.mint.toString(), error }, `Error confirming sell transaction`);
+      }
+    }
+  } catch (error) {
+    logger.error({ mint: rawAccount.mint.toString(), error }, `Failed to sell token`);
+  } finally {
+    if (this.config.oneTokenAtATime) {
+      this.sellExecutionCount--;
+    }
+  }
+}
+
+private async marketCapMatch(baseMint: PublicKey, accountId: PublicKey) {
+  if (this.config.marketCapCheckDuration === 0 || this.config.marketCapCheckInterval === 0) {
+    return;
+  }
+
+  const timesToCheck = this.config.marketCapCheckDuration / this.config.marketCapCheckInterval;
+  let timesChecked = 0;
+
+  do {
+    try {
+      const marketCap = await this.getTokenMarketCap(accountId)
+
+
+      logger.debug(
+        { mint: baseMint.toString() },
+        `Current Market Cap: ${marketCap.toFixed()} | Target Market Cap: ${Number(TARGET_SELL_MARKET_CAP).toFixed()} `,
+      );
+      if (marketCap >= Number(TARGET_SELL_MARKET_CAP)) {
+        break;
+      }
+
+
+      await sleep(this.config.marketCapCheckInterval);
+    } catch (e) {
+      logger.trace({ mint: baseMint.toString(), e }, `Failed to check token price`);
+    } finally {
+      timesChecked++;
+    }
+  } while (timesChecked < timesToCheck);
+}
 
   // noinspection JSUnusedLocalSymbols
   private async swap(
@@ -302,6 +324,7 @@ export class Bot {
     slippage: number,
     wallet: Keypair,
     direction: 'buy' | 'sell',
+
   ) {
     const slippagePercent = new Percent(slippage, 100);
     const poolInfo = await Liquidity.fetchInfo({
@@ -336,19 +359,15 @@ export class Bot {
       payerKey: wallet.publicKey,
       recentBlockhash: latestBlockhash.blockhash,
       instructions: [
-
-        ...(direction === 'buy'
-          ? [
-            createAssociatedTokenAccountIdempotentInstruction(
-              wallet.publicKey,
-              ataOut,
-              wallet.publicKey,
-              tokenOut.mint,
-            ),
-          ]
-          : []),
+        ...([
+          createAssociatedTokenAccountIdempotentInstruction(
+            wallet.publicKey,
+            ataOut,
+            wallet.publicKey,
+            tokenOut.mint,
+          ),
+        ]),
         ...innerTransaction.instructions,
-        ...(direction === 'sell' ? [createCloseAccountInstruction(ataIn, wallet.publicKey, wallet.publicKey)] : []),
       ],
     }).compileToV0Message();
 
@@ -357,40 +376,6 @@ export class Bot {
 
     return this.txExecutor.executeAndConfirm(transaction, wallet, latestBlockhash);
   }
-
-
-  private async marketCapMatch(baseMint: PublicKey, accountId: PublicKey) {
-    if (this.config.marketCapCheckDuration === 0 || this.config.marketCapCheckInterval === 0) {
-      return;
-    }
-
-    const timesToCheck = this.config.marketCapCheckDuration / this.config.marketCapCheckInterval;
-    let timesChecked = 0;
-
-    do {
-      try {
-        const marketCap = await this.getTokenMarketCap(accountId)
-
-
-        logger.debug(
-          { mint: baseMint.toString() },
-          `Current Market Cap: ${marketCap.toFixed()} | Target Market Cap: ${Number(TARGET_SELL_MARKET_CAP).toFixed()} `,
-        );
-        if (marketCap >= Number(TARGET_SELL_MARKET_CAP)) {
-          break;
-        }
-
-
-        await sleep(this.config.marketCapCheckInterval);
-      } catch (e) {
-        logger.trace({ mint: baseMint.toString(), e }, `Failed to check token price`);
-      } finally {
-        timesChecked++;
-      }
-    } while (timesChecked < timesToCheck);
-  }
-
-
   private async getTokenMarketCap(poolId: PublicKey): Promise<number> {
     try {
 
@@ -438,11 +423,4 @@ export class Bot {
       return this.solPriceCached
     }
   }
-
-
-
 }
-
-
-
-

@@ -71,10 +71,9 @@ const poolCache = new PoolCache();
 const bot = new Bot(connection, txExecutor, botConfig, marketCache, poolCache);
 
 // Function to handle detected tokens
-async function handleNewToken(tokenMintAddress: string,poolId:string) {
+async function handleNewToken(poolId: PublicKey,tokenMintAddress:string) {
   try {
-    // console.log(`Detected new token migrated to Raydium: ${tokenMintAddress}`);
-    console.log(`New token mint and pool ID found: ${tokenMintAddress}, ${poolId}`);
+    console.log(`Detected new token migrated to Raydium: ${tokenMintAddress}`);
 
     const metadataPDA = getPdaMetadataKey(new PublicKey(tokenMintAddress));
     const metadataAccount = await connection.getAccountInfo(metadataPDA.publicKey);
@@ -86,30 +85,38 @@ async function handleNewToken(tokenMintAddress: string,poolId:string) {
 
     // Check if token is eligible based on top holders' percentage
     const isEligible = await isTokenEligible(connection, tokenMintAddress);
-    // if (!isEligible) {
-    //   console.log(`Top holders hold more than 15% of the total supply. Skipping token: ${tokenMintAddress}`);
-    //   return;
-    // }
+    if (!isEligible) {
+      console.log(`Top holders hold more than 15% of the total supply. Skipping token: ${tokenMintAddress}`);
+      return;
+    }
 
-    console.log(`Buying token: ${tokenMintAddress}`);
+    // Fetch the pool account information
+    const poolAccountInfo = await connection.getAccountInfo(poolId);
+    if (!poolAccountInfo) {
+      throw new Error(`Pool with ID ${poolId} not found`);
+    }
 
-      // Fetch the pool account information
-      const poolAccountInfo = await connection.getAccountInfo(new PublicKey(poolId));
-      if (!poolAccountInfo) {
-        console.log(`Pool with ID ${poolId} not found`);
-        return
-      }
-  
-      // Decode the pool state using Raydium's LIQUIDITY_STATE_LAYOUT_V4
-      const poolState = LIQUIDITY_STATE_LAYOUT_V4.decode(poolAccountInfo.data);
-  
+    // Decode the pool state using Raydium's LIQUIDITY_STATE_LAYOUT_V4
+    let poolState = LIQUIDITY_STATE_LAYOUT_V4.decode(poolAccountInfo.data);
+    if(poolState.baseMint.toString() == quoteToken.mint.toString()){
+      poolState.baseMint = poolState.quoteMint
+      poolState.quoteMint = quoteToken.mint
+    }
+      console.log({
+        token_address: poolState.baseMint.toString(),
+        pool_address: poolId,
+      });
 
-    // Uncomment the following line to enable actual buying
-    await bot.buy(new PublicKey(tokenMintAddress), poolState);
+      // Perform the buy transaction for each wallet
+      await bot.buy(poolId, poolState);
+
+
+
   } catch (error) {
-    console.error(`Error handling token ${tokenMintAddress}:`, error);
+    console.log(`Failed to buy from pool: ${error}`);
   }
 }
+
 
 async function subscribeToOpenBookMarkets() {
   return connection.onProgramAccountChange(

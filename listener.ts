@@ -11,10 +11,9 @@ if ( !PUMP_FUN_MIGRATION_ACCOUNT) {
 }
 
 
-
-export function startTokenListener(onNewToken: (tokenMintAddress: string,poolId:string) => void) {
+export function startTokenListener(onNewToken: (poolId:PublicKey,tokenMintAddress:string) => void) {
   connection.onLogs(
-    new PublicKey(PUMP_FUN_MIGRATION_ACCOUNT),
+    new PublicKey("39azUYFWPz3VHgKCf3VChUwbpURdCHRxjWVowf5jUJjg"),
     async (log) => {
       const signature = log.signature;
       if (!signature) {
@@ -25,7 +24,7 @@ export function startTokenListener(onNewToken: (tokenMintAddress: string,poolId:
       const mintAndPool = await getMintAddressFromAccountIndex6(signature);
       if (mintAndPool?.tokenMint && mintAndPool?.poolId) {
         // console.log(`New token mint and pool ID found: ${mintAndPool?.tokenMint}, ${mintAndPool.poolId}`);
-        onNewToken(mintAndPool?.tokenMint,mintAndPool.poolId);
+        onNewToken(mintAndPool.poolId,mintAndPool?.tokenMint);
       }
     },
     'processed'
@@ -34,7 +33,7 @@ export function startTokenListener(onNewToken: (tokenMintAddress: string,poolId:
 
 
 
-async function getMintAddressFromAccountIndex6(signature: string): Promise<{tokenMint:string|null,poolId:string} | null> {
+async function getMintAddressFromAccountIndex6(signature: string): Promise<{tokenMint:string|null,poolId:PublicKey} | null> {
   try {
     const transactionDetails: VersionedTransactionResponse | null = await connection.getTransaction(signature, {
       maxSupportedTransactionVersion: 0,
@@ -49,7 +48,7 @@ async function getMintAddressFromAccountIndex6(signature: string): Promise<{toke
     const postTokenBalances = transactionDetails.meta?.postTokenBalances;
     if (!postTokenBalances) return null;
     const accountBalance = postTokenBalances.find((balance) => balance.accountIndex === 6);
-    return {tokenMint:accountBalance?.mint || null,poolId:poolId.toString()};
+    return {tokenMint:accountBalance?.mint || null,poolId:poolId};
   } catch (error) {
     console.error('Error fetching transaction details:', error);
     return null;
