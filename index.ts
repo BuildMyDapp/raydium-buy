@@ -78,17 +78,17 @@ async function handleNewToken(poolId: PublicKey,tokenMintAddress:string) {
     const metadataPDA = getPdaMetadataKey(new PublicKey(tokenMintAddress));
     const metadataAccount = await connection.getAccountInfo(metadataPDA.publicKey);
 
-    if (!metadataAccount) {
-      console.warn(`Metadata not found for token: ${tokenMintAddress}`);
-      return;
-    }
+    // if (!metadataAccount) {
+    //   console.warn(`Metadata not found for token: ${tokenMintAddress}`);
+    //   return;
+    // }
 
     // Check if token is eligible based on top holders' percentage
     const isEligible = await isTokenEligible(connection, tokenMintAddress);
-    if (!isEligible) {
-      console.log(`Top holders hold more than 15% of the total supply. Skipping token: ${tokenMintAddress}`);
-      return;
-    }
+    // if (!isEligible) {
+    //   console.log(`Top holders hold more than 15% of the total supply. Skipping token: ${tokenMintAddress}`);
+    //   return;
+    // }
 
     // Fetch the pool account information
     const poolAccountInfo = await connection.getAccountInfo(poolId);
@@ -151,10 +151,11 @@ async function subscribeToWalletChanges(walletPublicKey: PublicKey) {
       if (accountData.mint.equals(quoteToken.mint)) {
         return;
       }
+      logger.info(
+        { mint: accountData.mint.toString() },
+        `Send sell transaction attempt`,
+      );
       // if (!notforSaleList?.includes(accountData.mint.toString())) {
-        console.log({
-          "token_address": accountData.mint.toString(),
-        })
 
         await bot.sell(updatedAccountInfo.accountId, accountData);
       // }
@@ -178,7 +179,7 @@ async function subscribeToWalletChanges(walletPublicKey: PublicKey) {
 
 async function main() {
   console.log('Starting token listener...');
-  // startTokenListener(handleNewToken); // Use listener logic to detect new tokens
+  startTokenListener(handleNewToken); // Use listener logic to detect new tokens
   await subscribeToOpenBookMarkets();
   await subscribeToWalletChanges(wallet.publicKey);
 }

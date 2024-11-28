@@ -122,7 +122,7 @@ export class Bot {
   public async buy(accountId: PublicKey, poolState: LiquidityStateV4) {
     
       const marketCap = await this.getTokenMarketCap(accountId)
-      if(marketCap >= Number(FLOOR_BUY_MARKET_CAP) && marketCap <= Number(CEIL_BUY_MARKET_CAP)){
+      // if(marketCap >= Number(FLOOR_BUY_MARKET_CAP) && marketCap <= Number(CEIL_BUY_MARKET_CAP)){
         if (this.config.oneTokenAtATime) {
           if (this.mutex.isLocked() || this.sellExecutionCount > 0) {
             logger.debug(
@@ -193,7 +193,7 @@ export class Bot {
         this.mutex.release();
       }
     }
-  }
+  // }
 }
 
 
