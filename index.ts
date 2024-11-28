@@ -148,17 +148,12 @@ async function subscribeToWalletChanges(walletPublicKey: PublicKey) {
     TOKEN_PROGRAM_ID,
     async (updatedAccountInfo) => {
       const accountData = AccountLayout.decode(updatedAccountInfo.accountInfo.data);
-      if (accountData.mint.equals(quoteToken.mint)) {
-        return;
-      }
-      logger.info(
-        { mint: accountData.mint.toString() },
-        `Send sell transaction attempt`,
-      );
-      // if (!notforSaleList?.includes(accountData.mint.toString())) {
 
-        await bot.sell(updatedAccountInfo.accountId, accountData);
-      // }
+    if (accountData.mint.equals(quoteToken.mint)) {
+      return;
+    }
+
+    await bot.sell(updatedAccountInfo.accountId, accountData);
     },
     {
       commitment: connection.commitment,

@@ -7,6 +7,7 @@ import {
 } from '@solana/web3.js';
 import {
   createAssociatedTokenAccountIdempotentInstruction,
+  createCloseAccountInstruction,
   getAssociatedTokenAddress,
   RawAccount,
   TOKEN_PROGRAM_ID,
@@ -324,7 +325,6 @@ private async marketCapMatch(baseMint: PublicKey, accountId: PublicKey) {
     slippage: number,
     wallet: Keypair,
     direction: 'buy' | 'sell',
-
   ) {
     const slippagePercent = new Percent(slippage, 100);
     const poolInfo = await Liquidity.fetchInfo({
@@ -359,15 +359,18 @@ private async marketCapMatch(baseMint: PublicKey, accountId: PublicKey) {
       payerKey: wallet.publicKey,
       recentBlockhash: latestBlockhash.blockhash,
       instructions: [
-        ...([
-          createAssociatedTokenAccountIdempotentInstruction(
-            wallet.publicKey,
-            ataOut,
-            wallet.publicKey,
-            tokenOut.mint,
-          ),
-        ]),
+        ...(direction === 'buy'
+          ? [
+              createAssociatedTokenAccountIdempotentInstruction(
+                wallet.publicKey,
+                ataOut,
+                wallet.publicKey,
+                tokenOut.mint,
+              ),
+            ]
+          : []),
         ...innerTransaction.instructions,
+        ...(direction === 'sell' ? [createCloseAccountInstruction(ataIn, wallet.publicKey, wallet.publicKey)] : []),
       ],
     }).compileToV0Message();
 
