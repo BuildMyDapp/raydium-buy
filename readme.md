@@ -1,4 +1,4 @@
-## Raydium Solana Bot
+## Solana Bot for tokens  graduated from pump.fun to raydium.io 
 
 
 - npm install 

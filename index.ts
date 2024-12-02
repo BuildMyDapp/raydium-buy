@@ -84,7 +84,7 @@ async function handleNewToken(poolId: PublicKey,tokenMintAddress:string) {
     //   return;
     // }
 
-    // Check if token is eligible based on top holders' percentage
+    // // Check if token is eligible based on top holders' percentage
     // const isEligible = await isTokenEligible(connection, tokenMintAddress);
     // if (!isEligible) {
     //   console.log(`Top holders hold more than 15% of the total supply. Skipping token: ${tokenMintAddress}`);
@@ -99,6 +99,7 @@ async function handleNewToken(poolId: PublicKey,tokenMintAddress:string) {
 
     // Decode the pool state using Raydium's LIQUIDITY_STATE_LAYOUT_V4
     let poolState = LIQUIDITY_STATE_LAYOUT_V4.decode(poolAccountInfo.data);
+    // save pool info for later to retrieve for sell order
     poolCache.save(poolId.toString(), poolState);
   
     if(poolState.baseMint.toString() == quoteToken.mint.toString()){
@@ -106,16 +107,11 @@ async function handleNewToken(poolId: PublicKey,tokenMintAddress:string) {
       poolState.quoteMint = quoteToken.mint
       poolState.baseDecimal = poolState.quoteDecimal
       poolState.quoteDecimal = new BN(quoteToken.decimals)
-      
-
     }
-      console.log({
-        token_address: poolState.baseMint.toString(),
-        pool_address: poolId,
-      });
-      // save pool info for later to retrieve for sell order
-      // Perform the buy transaction for each wallet
-      await bot.buy(poolId, poolState);
+
+    
+    // Perform the buy transaction 
+    await bot.buy(poolId, poolState);
 
 
 
@@ -187,8 +183,8 @@ async function main() {
     process.exit(1);
   }
   startTokenListener(handleNewToken); // Use listener logic to detect new tokens
-  await subscribeToOpenBookMarkets();
-  await subscribeToWalletChanges(wallet.publicKey);
+  await subscribeToOpenBookMarkets(); // save openBook market data
+  await subscribeToWalletChanges(wallet.publicKey); // sell logic
 }
 
 main()
