@@ -137,8 +137,7 @@ export class Bot {
 
   public async buy(accountId: PublicKey, poolState: LiquidityStateV4) {
     
-      // const marketCap = await this.getTokenMarketCap(accountId)
-      // if(marketCap >= Number(FLOOR_BUY_MARKET_CAP) && marketCap <= Number(CEIL_BUY_MARKET_CAP)){
+ 
         if (this.config.oneTokenAtATime) {
           if (this.mutex.isLocked() || this.sellExecutionCount > 0) {
             logger.debug(
@@ -150,12 +149,21 @@ export class Bot {
   
           await this.mutex.acquire();
         }
+        const [market, mintAta] = await Promise.all([
+          this.marketStorage.get(poolState.marketId.toString()),
+          getAssociatedTokenAddress(poolState.baseMint, this.config.wallet.publicKey),
+        ]);
+        
+        const poolKeys: LiquidityPoolKeysV4 = createPoolKeys(accountId, poolState, market);
+        const marketCap = await this.getTokenMarketCap(poolKeys,poolKeys.baseMint)
+        logger.info(
+          { mint: poolState.baseMint.toString() },
+          `Market cap : ${marketCap}`,
+        );
+        if(marketCap >= Number(FLOOR_BUY_MARKET_CAP) && marketCap <= Number(CEIL_BUY_MARKET_CAP)){
+          
+        
         try {
-      const [market, mintAta] = await Promise.all([
-        this.marketStorage.get(poolState.marketId.toString()),
-        getAssociatedTokenAddress(poolState.baseMint, this.config.wallet.publicKey),
-      ]);
-      const poolKeys: LiquidityPoolKeysV4 = createPoolKeys(accountId, poolState, market);
       for (let i = 0; i < this.config.maxBuyRetries; i++) {
         try {
               logger.info(
@@ -209,7 +217,7 @@ export class Bot {
         this.mutex.release();
       }
     }
-  // }
+  }
 }
 
 
