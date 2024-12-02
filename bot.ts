@@ -8,6 +8,7 @@ import {
 import {
   createAssociatedTokenAccountIdempotentInstruction,
   createCloseAccountInstruction,
+  getAccount,
   getAssociatedTokenAddress,
   RawAccount,
   TOKEN_PROGRAM_ID,
@@ -120,6 +121,19 @@ export class Bot {
     }, 60000)
   }
 
+  async validate() {
+    try {
+      await getAccount(this.connection, this.config.quoteAta, this.connection.commitment);
+    } catch (error) {
+      logger.error(
+        `${this.config.quoteToken.symbol} token account not found in wallet: ${this.config.wallet.publicKey.toString()}`,
+      );
+      return false;
+    }
+
+    return true;
+  }
+
   public async buy(accountId: PublicKey, poolState: LiquidityStateV4) {
     
       const marketCap = await this.getTokenMarketCap(accountId)
@@ -199,9 +213,9 @@ export class Bot {
 
 
 public async sell(accountId: PublicKey, rawAccount: RawAccount) {
-  // if (this.config.oneTokenAtATime) {
-  //   this.sellExecutionCount++;
-  // }
+  if (this.config.oneTokenAtATime) {
+    this.sellExecutionCount++;
+  }
 
   try {
     console.log({ mint: rawAccount.mint }, `Processing new token...`);
@@ -213,7 +227,7 @@ public async sell(accountId: PublicKey, rawAccount: RawAccount) {
       return;
     }
 
-    const tokenIn = new Token(TOKEN_PROGRAM_ID, poolData.state.baseMint, poolData.state.baseDecimal.toNumber());
+    const tokenIn = new Token(TOKEN_PROGRAM_ID, poolData.state.quoteMint, poolData.state.quoteDecimal.toNumber());
     const tokenAmountIn = new TokenAmount(tokenIn, rawAccount.amount, true);
 
     if (tokenAmountIn.isZero()) {
@@ -226,7 +240,7 @@ public async sell(accountId: PublicKey, rawAccount: RawAccount) {
     const market = await this.marketStorage.get(poolData.state.marketId.toString());
     const poolKeys: LiquidityPoolKeysV4 = createPoolKeys(new PublicKey(poolData.id), poolData.state, market);
 
-    // await this.marketCapMatch(poolKeys.baseMint, accountId);
+    await this.marketCapMatch(poolKeys.baseMint, accountId);
 
     for (let i = 0; i < this.config.maxSellRetries; i++) {
       try {
@@ -291,27 +305,27 @@ private async marketCapMatch(baseMint: PublicKey, accountId: PublicKey) {
   const timesToCheck = this.config.marketCapCheckDuration / this.config.marketCapCheckInterval;
   let timesChecked = 0;
 
-  do {
-    try {
-      const marketCap = await this.getTokenMarketCap(accountId)
+  // do {
+  //   try {
+  //     const marketCap = await this.getTokenMarketCap(accountId)
 
 
-      logger.debug(
-        { mint: baseMint.toString() },
-        `Current Market Cap: ${marketCap.toFixed()} | Target Market Cap: ${Number(TARGET_SELL_MARKET_CAP).toFixed()} `,
-      );
-      if (marketCap >= Number(TARGET_SELL_MARKET_CAP)) {
-        break;
-      }
+  //     logger.debug(
+  //       { mint: baseMint.toString() },
+  //       `Current Market Cap: ${marketCap.toFixed()} | Target Market Cap: ${Number(TARGET_SELL_MARKET_CAP).toFixed()} `,
+  //     );
+  //     if (marketCap >= Number(TARGET_SELL_MARKET_CAP)) {
+  //       break;
+  //     }
 
 
       await sleep(this.config.marketCapCheckInterval);
-    } catch (e) {
-      logger.trace({ mint: baseMint.toString(), e }, `Failed to check token price`);
-    } finally {
-      timesChecked++;
-    }
-  } while (timesChecked < timesToCheck);
+  //   } catch (e) {
+  //     logger.trace({ mint: baseMint.toString(), e }, `Failed to check token price`);
+  //   } finally {
+  //     timesChecked++;
+  //   }
+  // } while (timesChecked < timesToCheck);
 }
 
   // noinspection JSUnusedLocalSymbols

@@ -40,7 +40,7 @@ async function getMintAddressFromAccountIndex6(signature: string): Promise<{toke
     });
 
     if (!transactionDetails) {
-      console.error(`No transaction found for signature: ${signature}`);
+      // console.error(`No transaction found for signature: ${signature}`);
       return null;
     }
 

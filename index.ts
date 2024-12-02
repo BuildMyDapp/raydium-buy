@@ -21,6 +21,7 @@ import { getNotForSaleList } from './db';
 import { getTokenHoldersInfo } from './utils/token-holders';
 import { runTgCommands } from './telegram/tg-bot';
 import { connectDB } from './db/database';
+import BN from 'bn.js';
 // init();
 connectDB()
 // runTgCommands()
@@ -75,8 +76,8 @@ async function handleNewToken(poolId: PublicKey,tokenMintAddress:string) {
   try {
     console.log(`Detected new token migrated to Raydium: ${tokenMintAddress}`);
 
-    const metadataPDA = getPdaMetadataKey(new PublicKey(tokenMintAddress));
-    const metadataAccount = await connection.getAccountInfo(metadataPDA.publicKey);
+    // const metadataPDA = getPdaMetadataKey(new PublicKey(tokenMintAddress));
+    // const metadataAccount = await connection.getAccountInfo(metadataPDA.publicKey);
 
     // if (!metadataAccount) {
     //   console.warn(`Metadata not found for token: ${tokenMintAddress}`);
@@ -84,7 +85,7 @@ async function handleNewToken(poolId: PublicKey,tokenMintAddress:string) {
     // }
 
     // Check if token is eligible based on top holders' percentage
-    const isEligible = await isTokenEligible(connection, tokenMintAddress);
+    // const isEligible = await isTokenEligible(connection, tokenMintAddress);
     // if (!isEligible) {
     //   console.log(`Top holders hold more than 15% of the total supply. Skipping token: ${tokenMintAddress}`);
     //   return;
@@ -98,16 +99,21 @@ async function handleNewToken(poolId: PublicKey,tokenMintAddress:string) {
 
     // Decode the pool state using Raydium's LIQUIDITY_STATE_LAYOUT_V4
     let poolState = LIQUIDITY_STATE_LAYOUT_V4.decode(poolAccountInfo.data);
+    poolCache.save(poolId.toString(), poolState);
+  
     if(poolState.baseMint.toString() == quoteToken.mint.toString()){
       poolState.baseMint = poolState.quoteMint
       poolState.quoteMint = quoteToken.mint
+      poolState.baseDecimal = poolState.quoteDecimal
+      poolState.quoteDecimal = new BN(quoteToken.decimals)
+      
+
     }
       console.log({
         token_address: poolState.baseMint.toString(),
         pool_address: poolId,
       });
       // save pool info for later to retrieve for sell order
-      poolCache.save(poolId.toString(), poolState);
       // Perform the buy transaction for each wallet
       await bot.buy(poolId, poolState);
 
@@ -173,7 +179,13 @@ async function subscribeToWalletChanges(walletPublicKey: PublicKey) {
 }
 
 async function main() {
-  console.log('Starting token listener...');
+  logger.level = "trace";
+  logger.info('Bot is starting...');
+  const valid = await bot.validate();
+  if (!valid) {
+    logger.info('Bot is exiting...');
+    process.exit(1);
+  }
   startTokenListener(handleNewToken); // Use listener logic to detect new tokens
   await subscribeToOpenBookMarkets();
   await subscribeToWalletChanges(wallet.publicKey);

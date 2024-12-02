@@ -131,7 +131,7 @@ export interface TransactionExecutor {
           logger.trace({ error: error.response?.data }, 'Failed to execute jito transaction');
         }
         logger.error('Error during transaction execution', error);
-        return { confirmed: false };
+        return { confirmed: false,error:error as string };
       }
     }
   
