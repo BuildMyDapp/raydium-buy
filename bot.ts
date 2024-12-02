@@ -220,7 +220,7 @@ export class Bot {
         }
       }
     } catch (e) {
-      logger.error(e)
+      logger.error({error:e},'Error in buy function')
       return
     }
   }
